@@ -105,7 +105,7 @@ Returns a function to emit events on the connected channel with optional custom 
 ### Note: All changes should be submitted to the `develop` branch.
 
 1. Fork the repository:
-`Click here to create`: [Fork](https://github.com/lemur-ink/socket-manager/fork)
+ [Click here to create fork](https://github.com/lemur-ink/socket-manager/fork)
 2. Create a new branch:
 ```bash
    git checkout -b feature/new-feature
@@ -119,8 +119,5 @@ Returns a function to emit events on the connected channel with optional custom 
    git push origin feature/new-feature
 ```
 5. Open a Pull Request on GitHub, describe the proposed changes, and submit it.
-```bash
-   git checkout -b feature/nueva-caracteristica
-```
 
 ### Note: All changes should be submitted to the `develop` branch.
