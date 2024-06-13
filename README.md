@@ -105,6 +105,7 @@ Returns a function to emit events on the connected channel with optional custom 
 ### Note: All changes should be submitted to the `develop` branch.
 
 1. Fork the repository.
+[Add Fork](https://github.com/lemur-ink/socket-manager/fork)
 2. Create a new branch:
 ```bash
    git checkout -b feature/new-feature
