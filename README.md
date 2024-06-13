@@ -99,3 +99,27 @@ Connects to a WebSocket channel and sets up callbacks for error and success even
 - `onError` (function): Callback function to handle error events.
 - `onSuccess` (function): Callback function to handle success events.
 Returns a function to emit events on the connected channel with optional custom headers.
+
+# Contribution
+
+### Note: All changes should be submitted to the `develop` branch.
+
+1. Fork the repository.
+2. Create a new branch:
+```bash
+   git checkout -b feature/new-feature
+```
+3. Make your changes and commit them:
+```bash
+   git commit -am 'Your comment here'
+```
+4. Push your changes to the branch:
+```bash
+   git push origin feature/new-feature
+```
+5. Open a Pull Request on GitHub, describe the proposed changes, and submit it.
+```bash
+   git checkout -b feature/nueva-caracteristica
+```
+
+### Note: All changes should be submitted to the `develop` branch.
