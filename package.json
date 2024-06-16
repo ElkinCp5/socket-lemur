@@ -18,6 +18,10 @@
   ],
   "author": "<@elkincp5>Elkin chaverra",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ElkinCp5/socket-lemur.git"
+  },
   "description": "The socket-lemur library simplifies WebSocket connections for real-time communication in chat applications and online games. The SocketServer class integrates JWT authentication and API key validation. The SocketClient class facilitates server communication and event handling, offering a robust solution.",
   "dependencies": {
     "jsonwebtoken": "^9.0.2",
@@ -30,5 +34,6 @@
     "ts-node": "10.9.2",
     "typescript": "5.4.5"
   },
+  "homepage": "https://github.com/ElkinCp5/socket-lemur.git",
   "types": "dist/**/*.d.ts"
 }
