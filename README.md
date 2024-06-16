@@ -6,14 +6,14 @@
 
 Ensure you have Node.js and npm installed. Then install the required packages:
 
-    `npm install socket-manager`
+    `npm install socket-lemur`
 
 ### UsageUsage
 
 Initialize the `SocketServer` instance and define custom event handlers for your application.
 
 ```javascript
-const { SocketServer } = require("socket-manager");
+const { SocketServer } = require("socket-lemur");
 const Product = require("./models/Product");
 
 // Initialize SocketServer
@@ -79,7 +79,7 @@ Establishes connection handling and defines event listeners for Socket.IO.
 Initialize `SocketClient` to connect to a WebSocket server and handle events.
 
 ```javascript
-const { SocketClient } = require("socket-manager");
+const { SocketClient } = require("socket-lemur");
 
 const url = "http://localhost:3000";
 
