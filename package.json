@@ -1,5 +1,5 @@
 {
-  "name": "socket-manager",
+  "name": "socket-lemur",
   "version": "0.0.1",
   "main": "dist/server/index.js",
   "browser": "dist/browser/index.js",
@@ -10,15 +10,15 @@
     "build": "npm run build-browser & npm run build-server"
   },
   "keywords": [
-    "socket-manager",
+    "socket-lemur",
     "socket.io",
-    "lib-socket-manager",
+    "lib-socket-lemur",
     "socket-client",
     "socket-server"
   ],
   "author": "<@elkincp5>Elkin chaverra",
   "license": "MIT",
-  "description": "The socket-manager library simplifies WebSocket connections for real-time communication in chat applications and online games. The SocketServer class integrates JWT authentication and API key validation. The SocketClient class facilitates server communication and event handling, offering a robust solution.",
+  "description": "The socket-lemur library simplifies WebSocket connections for real-time communication in chat applications and online games. The SocketServer class integrates JWT authentication and API key validation. The SocketClient class facilitates server communication and event handling, offering a robust solution.",
   "dependencies": {
     "jsonwebtoken": "^9.0.2",
     "socket.io": "4.7.5",
