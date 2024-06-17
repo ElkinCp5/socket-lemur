@@ -97,9 +97,9 @@ const { SocketClient } = require("socket-lemur");
 const url = "http://localhost:3000";
 
 // Initialize SocketClient with api_key
-const socketClient = new SocketClient(url, { apiKey: "api-key" });
+const socket = new SocketClient(url, { apiKey: "api-key" });
 // Initialize SocketClient with api_key and token
-const socketClient = new SocketClient(url, {
+const socket = new SocketClient(url, {
   apiKey: "api-key",
   token: "token",
 });
@@ -107,7 +107,7 @@ const socketClient = new SocketClient(url, {
 const error = (error) => console.error("Event error:", error);
 const success = (data) => console.error("Event success:", data);
 // Connect to a WebSocket channel and define event handlers
-const emit = socketClient.channel("products", error, success);
+const emit = socket.channel("products", error, success);
 
 // Example: Emit event
 emit();
