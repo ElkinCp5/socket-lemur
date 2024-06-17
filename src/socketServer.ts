@@ -9,18 +9,6 @@ type Next = (err?: any | undefined) => void;
 type OnSuccess = (data: any) => void;
 type OnEvent<T, S> = (data: T, session: S | undefined, onSuccess: OnSuccess) => void;
 
-interface Listen {
-    listen(port?: number, hostname?: string, backlog?: number, listeningListener?: () => void): HTTPServer;
-    listen(port?: number, hostname?: string, listeningListener?: () => void): HTTPServer;
-    listen(port?: number, backlog?: number, listeningListener?: () => void): HTTPServer;
-    listen(port?: number, listeningListener?: () => void): HTTPServer;
-    listen(path: string, backlog?: number, listeningListener?: () => void): HTTPServer;
-    listen(path: string, listeningListener?: () => void): HTTPServer;
-    listen(options: ListenOptions, listeningListener?: () => void): HTTPServer;
-    listen(handle: any, backlog?: number, listeningListener?: () => void): HTTPServer;
-    listen(handle: any, listeningListener?: () => void): HTTPServer;
-}
-
 const optsDefault: Partial<ServerOptions> = {
     cors: {
         origin: "*", // Configure CORS as needed
@@ -35,7 +23,7 @@ const optsDefault: Partial<ServerOptions> = {
  * SocketServer class for handling Socket.IO connections with optional room support.
  * @template Session - Type of the session object associated with each socket.
  */
-export class SocketServer<Session> extends TokenManager implements Listen {
+export class SocketServer<Session> extends TokenManager {
     protected ioServer: SocketIOServer;
     protected httpServer: HTTPServer;
     private apikey?: string;
@@ -57,11 +45,20 @@ export class SocketServer<Session> extends TokenManager implements Listen {
         this.secret = secret;
         this.roomsEnabled = roomsEnabled;
         this.rooms = new Map();
-        this.httpServer = createServer();
+        this.httpServer = createServer((_: any, res: any) => {
+            res.writeHead(404, { 'Content-Type': 'text/htm' });
+            res.end('');
+        });
         this.ioServer = new SocketIOServer(this.httpServer, settings);
         this.middleware = this.middleware.bind(this);
+        // this.listen = this.listen.bind(this);
         this.ioServer.use(this.middleware);
+        this.listen = this.httpServer.listen.bind(this.httpServer);
     }
+
+    // listen(...atrs: any[]) {
+    //     return this.httpServer.listen(...atrs);
+    // }
 
     /**
      * Middleware for authenticating API key and JWT token.
@@ -214,7 +211,21 @@ export class SocketServer<Session> extends TokenManager implements Listen {
         }
     }
 
-    listen(port?: number | any, hostname?: string | any, backlog?: number | any, listener?: () => void): HTTPServer {
-        return this.httpServer.listen(port, hostname, backlog, listener);
-    }
+    /**
+     * Listen for incoming connections on the server.
+     * @type {Function}
+     */
+    public listen: {
+        (port?: number, hostname?: string, backlog?: number, listeningListener?: () => void): HTTPServer;
+        (port?: number, hostname?: string, backlog?: number): HTTPServer;
+        (port?: number, hostname?: string, listeningListener?: () => void): HTTPServer;
+        (port?: number, backlog?: number, listeningListener?: () => void): HTTPServer;
+        (port?: number, backlog?: number): HTTPServer;
+        (port?: number, listeningListener?: () => void): HTTPServer;
+        (path: string, backlog?: number, listeningListener?: () => void): HTTPServer;
+        (path: string, listeningListener?: () => void): HTTPServer;
+        (options: ListenOptions, listeningListener?: () => void): HTTPServer;
+        (handle: any, backlog?: number, listeningListener?: () => void): HTTPServer;
+        (handle: any, listeningListener?: () => void): HTTPServer;
+    };
 }
