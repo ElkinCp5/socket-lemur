@@ -1,13 +1,13 @@
 {
   "name": "socket-lemur",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "main": "dist/server/index.js",
   "browser": "dist/browser/index.js",
   "scripts": {
     "build-browser": "npx tsc --outDir dist/browser --module ES6",
     "build-server": "npx tsc --outDir dist/server",
     "build": "npm run build-browser & npm run build-server",
-    "dev": "ts-node-dev examp/index.ts"
+    "dev": "ts-node-dev usecases/index.ts"
   },
   "keywords": [
     "socket-lemur",

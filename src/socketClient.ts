@@ -1,9 +1,7 @@
 import { io, Socket as SocketIOClient } from 'socket.io-client';
+import { LemurData, LemurEmit, LemurSecurity, OnErrorCallback, OnSuccessCallback } from './dts/types';
 
-interface OpsSecurity { apiKey?: string, token?: string };
-type OnSuccessCallback<T = any> = (data: T) => void;
-type OnErrorCallback = (error: any) => void;
-type EmitEvent<T> = (data: T | undefined, security?: OpsSecurity) => void;
+
 
 export class SocketClient {
     private socket: SocketIOClient;
@@ -11,27 +9,39 @@ export class SocketClient {
     /**
      * Creates an instance of SocketClient.
      * @param {string} serverUrl - The URL of the WebSocket server.
-     * @param {OpsSecurity} [security] - Optional security options.
+     * @param {LemurSecurity} [security] - Optional security options.
      * @param {OnErrorCallback} [onError] - Optional callback to handle errors.
      */
-    constructor(serverUrl: string, security?: OpsSecurity, onError?: OnErrorCallback) {
+    constructor(serverUrl: string, security?: LemurSecurity, onError?: OnErrorCallback) {
         this.socket = this.init(serverUrl, security, onError);
     }
 
     /**
      * Initializes the socket connection with the provided server URL and headers.
      * @param {string} serverUrl - The URL of the WebSocket server.
-     * @param {OpsSecurity} [security] - Optional security options.
+     * @param {LemurSecurity} [security] - Optional security options.
      * @param {OnErrorCallback} [onError] - Optional callback to handle errors.
      * @returns {SocketIOClient} The initialized socket instance.
      */
-    private init(serverUrl: string, security?: OpsSecurity, onError?: OnErrorCallback): SocketIOClient {
-        const opts: Record<string, string | any> = { auth: {} };
-        Object.entries(security || {}).forEach(([key, value]) => {
-            if (key == 'token') return opts.auth['authorization'] = `Bearer ${value}`;
-            if (key == 'apiKey') return opts.auth['x-api-key'] = value;
-            opts[key] = value;
-        });
+    private init(serverUrl: string, security?: LemurSecurity, onError?: OnErrorCallback): SocketIOClient {
+        const opts: Record<string, any> = { auth: {} };
+
+        if (security) {
+            for (const [key, value] of Object.entries(security)) {
+                switch (key) {
+                    case 'token':
+                        opts.auth['authorization'] = `Bearer ${value}`;
+                        break;
+                    case 'apiKey':
+                        opts.auth['x-api-key'] = value;
+                        break;
+                    default:
+                        opts[key] = value;
+                        break;
+                }
+            }
+        }
+
         return io(serverUrl, opts).on("connect_error", (e: any) => onError || console.error(`Connect error: ${e}`));
     }
 
@@ -41,17 +51,17 @@ export class SocketClient {
      * @param {OnErrorCallback} onError - Callback to handle error events.
      * @param {OnSuccessCallback} onSuccess - Callback to handle success events.
      * @param {string} [room] - Optional room name to join within the channel.
-     * @returns {Function} A function to emit events on the connected channel/room with optional custom headers.
+     * @returns {LemurEmit} A function to emit events on the connected channel/room with optional custom headers.
      */
-    public channel<T>(channel: string, onError: OnErrorCallback, onSuccess: OnSuccessCallback<T>, room?: string): EmitEvent<T> {
+    public channel<T>(channel: string, onError: OnErrorCallback, onSuccess: OnSuccessCallback<T>, room?: string): LemurEmit<T> {
         this.register(channel, onError, onSuccess, room);
         /**
          * Emits an event on the specified channel/room with the provided data and headers.
          * @param {T | undefined} [data] - The data to emit with the event.
-         * @param {OpsSecurity | undefined} [security] - Additional headers to send with the event.
+         * @param {LemurSecurity | undefined} [security] - Additional headers to send with the event.
          * @returns {void}
          */
-        return (data?: T, security?: OpsSecurity): void => {
+        return (data?: LemurData<T>, security?: LemurSecurity): void => {
             this.emitEvent(channel, data, security, room);
         };
     }
@@ -77,10 +87,10 @@ export class SocketClient {
      * Emits an event on the specified channel/room with the provided data and headers.
      * @param {string} channel - The name of the channel to emit the event on.
      * @param {T} [data] - The data to emit with the event.
-     * @param {OpsSecurity} [security] - Additional headers to send with the event.
+     * @param {LemurSecurity} [security] - Additional headers to send with the event.
      * @param {string} [room] - Optional room name to emit the event in.
      */
-    private emitEvent<T>(channel: string, data?: T, security?: OpsSecurity, room?: string): void {
+    private emitEvent<T>(channel: string, data?: T, security?: LemurSecurity, room?: string): void {
         const channelName = `${channel}${room ? `:${room}` : ''}`;
         this.socket.on("connect", () => {
             this.socket.emit(channelName, data, { auth: { ...this.socket.auth, ...security } });
