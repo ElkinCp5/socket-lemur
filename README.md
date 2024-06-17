@@ -1,6 +1,6 @@
 # SocketServer
 
-`SocketServer` is a utility class for managing WebSocket connections using Socket.IO, with integrated JWT authentication and API key validation.
+`SocketServer` is a utility class for managing WebSocket channels using Socket.IO, with integrated JWT authentication and API key validation.
 
 ### Installation
 
@@ -46,7 +46,7 @@ socketServer.channel(
 // More event definitions can be added here
 ```
 
-### ConstructorConstructor
+### Constructor
 
 #### `new SocketServer(apikey?, secret?, settings?)`
 
@@ -58,9 +58,9 @@ Creates a new instance of `SocketServer`.
 
 ### MethodsMethods
 
-#### connection()
+#### channel()
 
-Establishes connection handling and defines event listeners for Socket.IO.
+Establishes channel handling and defines event listeners for Socket.IO.
 
 - Returns a function `(eventName, onEvent, tokenRequire)` to register event handlers.
 
@@ -74,7 +74,7 @@ Establishes connection handling and defines event listeners for Socket.IO.
 
 `SocketClient` class facilitates WebSocket communication with a server using Socket.IO.
 
-### UsageUsage
+### Usage
 
 Initialize `SocketClient` to connect to a WebSocket server and handle events.
 
@@ -98,7 +98,10 @@ const emitEvent = socketClient.channel(
   (data) => console.log("Event success:", data)
 );
 
-// Example: Emit event with data and custom headers
+// Example: Emit event
+emitEvent();
+
+// Example: Emit event with data
 emitEvent({ message: "Hello, WebSocket!" });
 
 // Example: Emit event with data and Auth headers
@@ -116,7 +119,7 @@ Creates an instance of `SocketClient` to connect to a WebSocket server.
 
 ### Methods
 
-#### connect(channel, onError, onSuccess)()
+#### channel(channel, onError, onSuccess)()
 
 Connects to a WebSocket channel and sets up callbacks for error and success events.
 
