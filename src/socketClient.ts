@@ -41,7 +41,7 @@ export class SocketClient {
      * @param {OnErrorCallback} onError - Callback to handle error events.
      * @param {OnSuccessCallback} onSuccess - Callback to handle success events.
      * @param {string} [room] - Optional room name to join within the channel.
-     * @returns {Function} A function to emit events on the connected channel/room with optional custom headers.
+     * @returns {EmitEvent} A function to emit events on the connected channel/room with optional custom headers.
      */
     public channel<T>(channel: string, onError: OnErrorCallback, onSuccess: OnSuccessCallback<T>, room?: string): EmitEvent<T> {
         this.register(channel, onError, onSuccess, room);

@@ -48,27 +48,40 @@ socketServer.channel(
 
 ### Constructor
 
-#### `new SocketServer(apikey?, secret?, settings?)`
+#### `new SocketServer<S>(apikey?, secret?, settings?, roomsEnabled?)`
 
 Creates a new instance of `SocketServer`.
 
+```javascript
+const default: Partial<ServerOptions> = {
+    cors: {
+        origin: "*", // Configure CORS as needed
+        methods: ["GET", "POST"],
+        credentials: true,
+    },
+    allowEIO3: true
+};
+```
+
 - `apikey` (optional): API key for validating requests.
 - `secret` (optional): Secret key for JWT token validation.
-- `settings` (optional): Socket.IO server settings <ServerOptions>.
+- `settings` (optional): Socket.IO server settings `default`.
+- `roomsEnabled` (optional): Whether to enable room support `false`.
 
 ### MethodsMethods
 
-#### channel()
+#### channel<T>(name, onEvent, tokenRequire, roomSupport)
 
 Establishes channel handling and defines event listeners for Socket.IO.
 
-- Returns a function `(eventName, onEvent, tokenRequire)` to register event handlers.
-
 #### Parameters:
 
-- `eventName`: Name of the event to handle.
-- `onEvent`: Callback function to handle the event.
-- `tokenRequire` (optional): Boolean indicating if JWT authentication is required.
+Initialize handling for a channel with optional room support.
+
+- `name`: {string} - The name of the channel.
+- `onEvent`: {OnEvent<T, S>} - Callback to handle incoming events.
+- `tokenRequire`: {boolean} - Whether token authentication is required for events on this channel `false`.
+- `roomSupport`: {boolean} - Whether room support is enabled for this channel `this.roomsEnabled`.
 
 # SocketClient
 
@@ -114,16 +127,25 @@ emitEvent({ message: "Hello, WebSocket!" }, { token: "your_auth_token" });
 
 Creates an instance of `SocketClient` to connect to a WebSocket server.
 
-- `serverUrl` (string): The URL of the WebSocket server.
-- `security` (optional object): The API key and The JWT token `{apiKey, token}`
+- `serverUrl`: {string} - The URL of the WebSocket server.
+- `security`: {OpsSecurity} - Optional security options `{apiKey, token}`.
+- `onError`: {OnErrorCallback} - Optional callback to handle errors.
 
 ### Methods
 
-#### channel(channel, onError, onSuccess)()
+#### channel<T>(channel, onError, onSuccess, room): EmitEvent
 
 Connects to a WebSocket channel and sets up callbacks for error and success events.
 
-- `channel` (string): The name of the channel to connect to.
-- `onError` (function): Callback function to handle error events.
-- `onSuccess` (function): Callback function to handle success events.
-  Returns a function to emit events on the connected channel with optional custom headers.
+- `channel`: {string} - The name of the channel to connect to.
+- `onError`: {OnErrorCallback} - Callback to handle error events.
+- `onSuccess`: {OnSuccessCallback} - Callback to handle success events.
+- `room`: {string} - Optional room name to join within the channel.
+- `return` {EmitEvent} A function to emit events on the connected channel/room with optional custom headers.
+
+#### EmitEvent(data, security)()
+
+Emits an event on the specified channel/room with the provided data and headers.
+
+- `data` {T | undefined} - The data to emit with the event.
+- `security` {OpsSecurity | undefined} - Additional headers to send with the event `{token}`.
