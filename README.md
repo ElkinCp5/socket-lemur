@@ -17,21 +17,21 @@ const { SocketServer } = require("socket-lemur");
 const Product = require("./models/Product");
 
 // Initialize SocketServer
-const socketServer = new SocketServer("your-api-key", "your-jwt-secret");
+const server = new SocketServer("your-api-key", "your-jwt-secret");
 
 // Start the server on port
 const PORT = process.env.PORT || 4000;
-socketServer.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Socket run on port http://localhost:${PORT}`);
 });
 
 // Channels
-socketServer.channel(
-  "get/products",
-  async (data, session, onSuccess) => {
+server.channel(
+  "products",
+  async (req, res) => {
     try {
       // Run service
-      const product = new Product(data);
+      const product = new Product(req.body);
       await product.save();
       // Response
       onSuccess(product);
@@ -48,27 +48,40 @@ socketServer.channel(
 
 ### Constructor
 
-#### `new SocketServer(apikey?, secret?, settings?)`
+#### `new SocketServer<S>(apikey?, secret?, settings?, roomsEnabled?)`
 
 Creates a new instance of `SocketServer`.
 
+```javascript
+const default: Partial<ServerOptions> = {
+    cors: {
+        origin: "*", // Configure CORS as needed
+        methods: ["GET", "POST"],
+        credentials: true,
+    },
+    allowEIO3: true
+};
+```
+
 - `apikey` (optional): API key for validating requests.
 - `secret` (optional): Secret key for JWT token validation.
-- `settings` (optional): Socket.IO server settings <ServerOptions>.
+- `settings` (optional): Socket.IO server settings `default`.
+- `roomsEnabled` (optional): Whether to enable room support `false`.
 
 ### MethodsMethods
 
-#### channel()
+#### channel<T>(name, onEvent, tokenRequire, roomSupport)
 
 Establishes channel handling and defines event listeners for Socket.IO.
 
-- Returns a function `(eventName, onEvent, tokenRequire)` to register event handlers.
-
 #### Parameters:
 
-- `eventName`: Name of the event to handle.
-- `onEvent`: Callback function to handle the event.
-- `tokenRequire` (optional): Boolean indicating if JWT authentication is required.
+Initialize handling for a channel with optional room support.
+
+- `name`: {string} - The name of the channel.
+- `onEvent`: {onEvent} - Callback to handle incoming events.
+- `tokenRequire`: {boolean} - Whether token authentication is required for events on this channel `false`.
+- `roomSupport`: {boolean} - Whether room support is enabled for this channel `this.roomsEnabled`.
 
 # SocketClient
 
@@ -91,21 +104,30 @@ const socketClient = new SocketClient(url, {
   token: "token",
 });
 
+const error = (error) => console.error("Event error:", error);
+const success = (data) => console.error("Event success:", data);
 // Connect to a WebSocket channel and define event handlers
-const emitEvent = socketClient.channel(
-  "get/products",
-  (error) => console.error("Event error:", error),
-  (data) => console.log("Event success:", data)
-);
+const emit = socketClient.channel("products", error, success);
 
 // Example: Emit event
-emitEvent();
+emit();
 
 // Example: Emit event with data
-emitEvent({ message: "Hello, WebSocket!" });
+emit({
+  data: { message: "Hello, WebSocket!" },
+});
 
-// Example: Emit event with data and Auth headers
-emitEvent({ message: "Hello, WebSocket!" }, { token: "your_auth_token" });
+// Example: Emit event with data, params and Auth headers
+emit(
+  {
+    data: { message: "Hello, WebSocket!" },
+    params: {
+      id: "userid",
+      name: "smit",
+    },
+  },
+  { token: "your_auth_token" }
+);
 ```
 
 ### Constructor
@@ -114,16 +136,39 @@ emitEvent({ message: "Hello, WebSocket!" }, { token: "your_auth_token" });
 
 Creates an instance of `SocketClient` to connect to a WebSocket server.
 
-- `serverUrl` (string): The URL of the WebSocket server.
-- `security` (optional object): The API key and The JWT token `{apiKey, token}`
+```typescript
+interface Security {
+  apiKey?: string;
+  token?: T;
+}
+```
+
+- `serverUrl`: {string} - The URL of the WebSocket server.
+- `security`: {Security} - Optional security options `{apiKey, token}`.
+- `onError`: {OnErrorCallback} - Optional callback to handle errors.
 
 ### Methods
 
-#### channel(channel, onError, onSuccess)()
+#### channel<T>(channel, onError, onSuccess, room): EmitEvent
 
 Connects to a WebSocket channel and sets up callbacks for error and success events.
 
-- `channel` (string): The name of the channel to connect to.
-- `onError` (function): Callback function to handle error events.
-- `onSuccess` (function): Callback function to handle success events.
-  Returns a function to emit events on the connected channel with optional custom headers.
+- `channel`: {string} - The name of the channel to connect to.
+- `onError`: {OnErrorCallback} - Callback to handle error events.
+- `onSuccess`: {OnSuccessCallback} - Callback to handle success events.
+- `room`: {string} - Optional room name to join within the channel.
+- `return` {Emit} A function to emit events on the connected channel/room with optional custom headers.
+
+#### Emit(data, security)()
+
+Emits an event on the specified channel/room with the provided data and headers.
+
+```typescript
+interface Data {
+  params?: Record<string, any>;
+  data: T;
+}
+```
+
+- `data` {Data | undefined} - The data to emit with the event.
+- `security` {Security | undefined} - Additional headers to send with the event `{token}`.
