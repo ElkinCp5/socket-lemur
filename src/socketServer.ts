@@ -1,20 +1,14 @@
 import { createServer, Server as HTTPServer } from 'http';
 import { Server as SocketIOServer, ServerOptions } from 'socket.io';
-import { Socket as SocketIORequestServer } from 'socket.io';
 import { TokenManager } from './tokenManager';
 import { ListenOptions } from 'net';
-
-type Socket<T extends any> = SocketIORequestServer<any, any, any, any, T>;
-type Next = (err?: any | undefined) => void;
-type OnSuccess = (data: any) => void;
-type OnEvent<T, S> = (data: T, session: S | undefined, onSuccess: OnSuccess) => void;
+import { LemurSocket, LemurRequest, LemurNext, LemurEvent } from './dts/types';
 
 const optsDefault: Partial<ServerOptions> = {
     cors: {
-        origin: "*", // Configure CORS as needed
+        origin: "*",
         methods: ["GET", "POST"],
         credentials: true,
-        // transports: ['websocket', 'polling'],
     },
     allowEIO3: true
 };
@@ -30,7 +24,7 @@ export class SocketServer<Session> extends TokenManager {
     private secret?: string;
     private authorization?: string;
     private roomsEnabled: boolean; // Flag to indicate if rooms are enabled
-    private rooms: Map<string, Set<Socket<Session>>>; // Map to store active rooms
+    private rooms: Map<string, Set<LemurSocket<Session>>>; // Map to store active rooms
 
     /**
      * Creates an instance of SocketServer.
@@ -62,15 +56,15 @@ export class SocketServer<Session> extends TokenManager {
 
     /**
      * Middleware for authenticating API key and JWT token.
-     * @param {Socket<Session>} socket - The socket instance.
-     * @param {Next} next - The next function to call.
+     * @param {LemurSocket<Session>} socket - The socket instance.
+     * @param {LemurNext} next - The next function to call.
      */
-    private middleware(socket: Socket<Session>, next: Next) {
-        const { headers, auth } = socket.handshake;
+    private middleware(socket: LemurSocket<Session>, next: LemurNext) {
+        const { auth } = socket.handshake;
         const apikey = auth['x-api-key'] as string;
         this.authorization = auth['authorization'] as string;
         if (this.apikey && !this.validApiKey(apikey)) {
-            console.log({ headers, auth });
+            console.error('Unauthorized access', { auth });
             return next(new Error('Unauthorized access: Invalid API key.'));
         }
         next();
@@ -79,28 +73,37 @@ export class SocketServer<Session> extends TokenManager {
     /**
      * Initialize handling for a channel with optional room support.
      * @param {string} name - The name of the channel.
-     * @param {OnEvent<T, Session>} onEvent - Callback to handle incoming events.
+     * @param {LemurEvent<T, Session>} onEvent - Callback to handle incoming events.
      * @param {boolean} [tokenRequire=false] - Whether token authentication is required for events on this channel.
      * @param {boolean} [roomSupport=this.roomsEnabled] - Whether room support is enabled for this channel.
      */
-    public channel<T>(name: string, onEvent: OnEvent<T, Session>, tokenRequire: boolean = false, roomSupport: boolean = this.roomsEnabled) {
-        this.ioServer.on('connection', (socket: Socket<Session>) => {
+    public channel<T>(name: string, onEvent: LemurEvent<T, Session>, tokenRequire: boolean = false, roomSupport: boolean = this.roomsEnabled) {
+        this.ioServer.on('connection', (socket: LemurSocket<Session>) => {
             if (roomSupport) {
                 socket.on('join', (room: string) => this.handleRoomJoin(socket, name, room));
                 socket.on('leave', (room: string) => this.handleRoomLeave(socket, name, room));
             }
-            socket.on(name, (data: T) => this.handleEvent(name, socket, data, onEvent, tokenRequire));
+
+            socket.on(name, (request: any) => {
+                if (request?.authorization) socket.handshake.auth.authorization = request.authorization
+                const data: LemurRequest<T, Session> = {
+                    body: request?.data,
+                    params: request?.params || {} as Record<string, any>,
+                    session: undefined
+                };
+                this.handleEvent<T>(name, socket, data, onEvent, tokenRequire)
+            });
             socket.on('disconnect', () => this.handleDisconnect(socket, name));
         });
     }
 
     /**
      * Handle joining a room within a channel.
-     * @param {Socket<Session>} socket - The socket instance.
+     * @param {LemurSocket<Session>} socket - The socket instance.
      * @param {string} channel - The name of the channel.
      * @param {string} room - The name of the room to join.
      */
-    private handleRoomJoin(socket: Socket<Session>, channel: string, room: string) {
+    private handleRoomJoin(socket: LemurSocket<Session>, channel: string, room: string) {
         const roomName = `${channel}:${room}`;
         socket.join(roomName);
         if (!this.rooms.has(roomName)) {
@@ -112,11 +115,11 @@ export class SocketServer<Session> extends TokenManager {
 
     /**
      * Handle leaving a room within a channel.
-     * @param {Socket<Session>} socket - The socket instance.
+     * @param {LemurSocket<Session>} socket - The socket instance.
      * @param {string} channel - The name of the channel.
      * @param {string} room - The name of the room to leave.
      */
-    private handleRoomLeave(socket: Socket<Session>, channel: string, room: string) {
+    private handleRoomLeave(socket: LemurSocket<Session>, channel: string, room: string) {
         const roomName = `${channel}:${room}`;
         socket.leave(roomName);
         if (this.rooms.has(roomName)) {
@@ -131,23 +134,25 @@ export class SocketServer<Session> extends TokenManager {
     /**
      * Handle incoming event on a channel.
      * @param {string} name - The name of the channel.
-     * @param {Socket<Session>} socket - The socket instance.
+     * @param {LemurSocket<Session>} socket - The socket instance.
      * @param {T} data - The data received with the event.
-     * @param {OnEvent<T, Session>} onEvent - Callback to handle the event.
+     * @param {LemurEvent<T, Session>} onEvent - Callback to handle the event.
      * @param {boolean} tokenRequire - Whether token authentication is required for the event.
      */
-    private handleEvent<T>(name: string, socket: Socket<Session>, data: T, onEvent: OnEvent<T, Session>, tokenRequire: boolean) {
+    private handleEvent<T>(name: string, socket: LemurSocket<Session>, data: LemurRequest<T, Session>, onEvent: LemurEvent<T, Session>, tokenRequire: boolean) {
+        const token = this.authorization || socket.handshake.auth?.authorization || '';
 
-        if (tokenRequire) {
-            const session = this.validToken<Session>(this.secret || '', this.authorization || '');
+        if (tokenRequire && this.secret) {
+            const session = this.validToken<Session>(this.secret, token);
             if (!session) {
                 return this.emitError(name, socket, 'Unauthorized access: No valid session found.');
             }
             socket.session = session;
+            data.session = session;
         }
 
         try {
-            onEvent(data, socket.session, (response: any) => this.emitSuccess(name, socket, response));
+            onEvent(data, (response) => this.emitSuccess(name, socket, response));
         } catch (error: any) {
             this.emitError(name, socket, error.message);
         }
@@ -155,10 +160,10 @@ export class SocketServer<Session> extends TokenManager {
 
     /**
      * Handle disconnection from a channel.
-     * @param {Socket<Session>} socket - The socket instance.
+     * @param {LemurSocket<Session>} socket - The socket instance.
      * @param {string} channel - The name of the channel.
      */
-    private handleDisconnect(socket: Socket<Session>, channel: string) {
+    private handleDisconnect(socket: LemurSocket<Session>, channel: string) {
         console.log(`Client disconnected from channel ${channel}`);
         // Additional cleanup logic can be added here if needed
         socket.emit('disconnected', true);
@@ -167,20 +172,20 @@ export class SocketServer<Session> extends TokenManager {
     /**
      * Emit success event to a socket.
      * @param {string} channel - The name of the channel.
-     * @param {Socket<Session>} socket - The socket instance.
+     * @param {LemurSocket<Session>} socket - The socket instance.
      * @param {any} data - The data to emit with the event.
      */
-    private emitSuccess(channel: string, socket: Socket<Session>, data: any) {
+    private emitSuccess(channel: string, socket: LemurSocket<Session>, data: any) {
         socket.emit(`${channel}:success`, data);
     }
 
     /**
      * Emit error event to a socket.
      * @param {string} channel - The name of the channel.
-     * @param {Socket<Session>} socket - The socket instance.
+     * @param {LemurSocket<Session>} socket - The socket instance.
      * @param {string} error - The error message.
      */
-    private emitError(channel: string, socket: Socket<Session>, error: string) {
+    private emitError(channel: string, socket: LemurSocket<Session>, error: string) {
         socket.emit(`${channel}:error`, { error });
     }
 
@@ -200,13 +205,11 @@ export class SocketServer<Session> extends TokenManager {
      * @returns {Session | undefined} The decoded token payload if validation is successful, otherwise undefined.
      */
     private validToken<Session>(secret: string, authorization: string): Session | undefined {
-        if (authorization.startsWith('Bearer ')) {
-            authorization = authorization.slice(7);
-        }
+        authorization = authorization.replace(/Bearer/g, '').replace(/ /g, "");
         try {
             return this.extract<Session>(authorization, secret);
-        } catch (error) {
-            console.error('Token validation failed:', error);
+        } catch (error: any) {
+            console.error('Token failed:', error?.message);
             return undefined;
         }
     }

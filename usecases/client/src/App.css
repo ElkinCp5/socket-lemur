@@ -1,0 +1,116 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1rem 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 3em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+li.tag {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.8em 0.8em 0.8em 0.6rem;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+  display: inline-flex;
+  margin: 0 0.3rem 0.8rem 0.3rem;
+}
+
+li.tag,
+li.tag small,
+li.tag strong {
+  line-height: 1;
+}
+
+li.tag small {
+  margin-right: 0.5rem;
+  line-height: 1.5;
+  background-color: #ffffff21;
+  padding: 0rem 0.3rem;
+  border-radius: 4px;
+}
+
+/* Incluye aquí el CSS proporcionado anteriormente */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.message-box {
+  flex-grow: 1;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.chat-input {
+  display: inline-block;
+  align-items: center;
+}
+
+.chat-input input[type="text"] {
+  flex-grow: 1;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  outline: none;
+  font-size: 16px;
+  transition: border-color 0.3s;
+}
+
+.chat-input button {
+  margin-left: 10px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.chat-input button,
+.chat-input input {
+  margin-bottom: 1.5rem;
+}
+
+.read-the-docs {
+  color: #888;
+}

@@ -1,13 +1,16 @@
 {
   "name": "socket-lemur",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "main": "dist/server/index.js",
   "browser": "dist/browser/index.js",
   "scripts": {
+    "browser-watch": "npx tsc --outDir dist/browser --module ES6 -w",
+    "server-watch": "npx tsc --outDir dist/server -w",
+    "build-cdn": "npx tsc --outDir dist/cdn --module ESNext --target ES5",
     "build-browser": "npx tsc --outDir dist/browser --module ES6",
     "build-server": "npx tsc --outDir dist/server",
     "build": "npm run build-browser & npm run build-server",
-    "dev": "ts-node-dev examp/index.ts"
+    "dev:server": "ts-node-dev usecases/server.ts"
   },
   "keywords": [
     "socket-lemur",
