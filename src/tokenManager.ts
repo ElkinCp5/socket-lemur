@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
  * TokenManager class to handle JWT token generation and extraction.
  */
 export class TokenManager {
-    constructor() {}
+    constructor() { }
 
     /**
      * Extracts and verifies a JWT token.
@@ -16,8 +16,8 @@ export class TokenManager {
     extract<T>(token: string, secret: string): T | undefined {
         try {
             return jwt.verify(token, secret) as T;
-        } catch (error) {
-            console.error('Token verification failed:', error);
+        } catch (error: any) {
+            console.error('Token failed:', error.message);
             return undefined;
         }
     }

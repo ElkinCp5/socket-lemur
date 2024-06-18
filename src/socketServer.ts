@@ -60,11 +60,11 @@ export class SocketServer<Session> extends TokenManager {
      * @param {LemurNext} next - The next function to call.
      */
     private middleware(socket: LemurSocket<Session>, next: LemurNext) {
-        const { headers, auth } = socket.handshake;
+        const { auth } = socket.handshake;
         const apikey = auth['x-api-key'] as string;
         this.authorization = auth['authorization'] as string;
         if (this.apikey && !this.validApiKey(apikey)) {
-            console.log({ headers, auth });
+            console.error('Unauthorized access', { auth });
             return next(new Error('Unauthorized access: Invalid API key.'));
         }
         next();
@@ -83,7 +83,9 @@ export class SocketServer<Session> extends TokenManager {
                 socket.on('join', (room: string) => this.handleRoomJoin(socket, name, room));
                 socket.on('leave', (room: string) => this.handleRoomLeave(socket, name, room));
             }
+
             socket.on(name, (request: any) => {
+                if (request?.authorization) socket.handshake.auth.authorization = request.authorization
                 const data: LemurRequest<T, Session> = {
                     body: request?.data,
                     params: request?.params || {} as Record<string, any>,
@@ -138,9 +140,10 @@ export class SocketServer<Session> extends TokenManager {
      * @param {boolean} tokenRequire - Whether token authentication is required for the event.
      */
     private handleEvent<T>(name: string, socket: LemurSocket<Session>, data: LemurRequest<T, Session>, onEvent: LemurEvent<T, Session>, tokenRequire: boolean) {
+        const token = this.authorization || socket.handshake.auth?.authorization || '';
 
-        if (tokenRequire) {
-            const session = this.validToken<Session>(this.secret || '', this.authorization || '');
+        if (tokenRequire && this.secret) {
+            const session = this.validToken<Session>(this.secret, token);
             if (!session) {
                 return this.emitError(name, socket, 'Unauthorized access: No valid session found.');
             }
@@ -202,13 +205,11 @@ export class SocketServer<Session> extends TokenManager {
      * @returns {Session | undefined} The decoded token payload if validation is successful, otherwise undefined.
      */
     private validToken<Session>(secret: string, authorization: string): Session | undefined {
-        if (authorization.startsWith('Bearer ')) {
-            authorization = authorization.slice(7);
-        }
+        authorization = authorization.replace(/Bearer/g, '').replace(/ /g, "");
         try {
             return this.extract<Session>(authorization, secret);
-        } catch (error) {
-            console.error('Token validation failed:', error);
+        } catch (error: any) {
+            console.error('Token failed:', error?.message);
             return undefined;
         }
     }

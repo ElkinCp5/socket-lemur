@@ -10,22 +10,23 @@ socket.listen(PORT, () => {
     console.log(`Server Run http://localhost:${PORT}`);
 });
 
-// Channels
-socket.channel<any>('messages', async (req, res) => {
-    console.log({ req });
-    const menu = await getMenuFromDatabase();
-    setInterval(() => res({ menu, session: req.body }), 2000)
+async function get() {
+    return data;
+}
+
+async function add(product: { name: string }) {
+    data.push({ id: data.length + 1, name: product.name })
+    return data;
+}
+
+const data = [{ id: 1, name: 'Pizza' }, { id: 2, name: 'Pasta' }];
+
+socket.channel<any>('get/products', async (_, res) => {
+    const products = await get();
+    res(products)
 });
 
-socket.channel<{ name: string }>('post/menu', async (req, res) => {
-    const item = await addMenuItemToDatabase(req.body);
-    res({ item, data: req.body });
+socket.channel<{ name: string }>('post/products', async (req, res) => {
+    const products = await add(req.body);
+    res(products);
 }, true);
-
-async function getMenuFromDatabase() {
-    return [{ id: 1, name: 'Pizza' }, { id: 2, name: 'Pasta' }];
-}
-
-async function addMenuItemToDatabase(data: { name: string }) {
-    return { id: 3, name: data.name };
-}

@@ -1,4 +1,4 @@
-import { io, Socket as SocketIOClient } from 'socket.io-client';
+import { io, ManagerOptions, Socket as SocketIOClient, SocketOptions } from 'socket.io-client';
 import { LemurData, LemurEmit, LemurSecurity, OnErrorCallback, OnSuccessCallback } from './dts/types';
 
 
@@ -12,8 +12,12 @@ export class SocketClient {
      * @param {LemurSecurity} [security] - Optional security options.
      * @param {OnErrorCallback} [onError] - Optional callback to handle errors.
      */
-    constructor(serverUrl: string, security?: LemurSecurity, onError?: OnErrorCallback) {
-        this.socket = this.init(serverUrl, security, onError);
+    constructor(
+        private readonly serverUrl: string,
+        private readonly security?: LemurSecurity,
+        onError?: OnErrorCallback
+    ) {
+        this.socket = this.init(this.serverUrl, this.security, onError);
     }
 
     /**
@@ -23,8 +27,8 @@ export class SocketClient {
      * @param {OnErrorCallback} [onError] - Optional callback to handle errors.
      * @returns {SocketIOClient} The initialized socket instance.
      */
-    private init(serverUrl: string, security?: LemurSecurity, onError?: OnErrorCallback): SocketIOClient {
-        const opts: Record<string, any> = { auth: {} };
+    private init(serverUrl: string, security?: Partial<LemurSecurity & ManagerOptions & SocketOptions>, onError?: OnErrorCallback): SocketIOClient {
+        const opts: Record<string, any> = { auth: {}, autoConnect: false };
 
         if (security) {
             for (const [key, value] of Object.entries(security)) {
@@ -53,16 +57,16 @@ export class SocketClient {
      * @param {string} [room] - Optional room name to join within the channel.
      * @returns {LemurEmit} A function to emit events on the connected channel/room with optional custom headers.
      */
-    public channel<T>(channel: string, onError: OnErrorCallback, onSuccess: OnSuccessCallback<T>, room?: string): LemurEmit<T> {
-        this.register(channel, onError, onSuccess, room);
+    public channel<T>(channel: string, onSuccess: OnSuccessCallback<T>, onError?: OnErrorCallback, room?: string): LemurEmit<T> {
+        this.register(channel, onSuccess, onError, room);
         /**
          * Emits an event on the specified channel/room with the provided data and headers.
          * @param {T | undefined} [data] - The data to emit with the event.
-         * @param {LemurSecurity | undefined} [security] - Additional headers to send with the event.
+         * @param {string | undefined} [token] - Additional headers to send with the event.
          * @returns {void}
          */
-        return (data?: LemurData<T>, security?: LemurSecurity): void => {
-            this.emitEvent(channel, data, security, room);
+        return (data?: LemurData<T>, token?: string): void => {
+            this.emitEvent(channel, data, token, room);
         };
     }
 
@@ -73,28 +77,25 @@ export class SocketClient {
      * @param {OnSuccessCallback} onSuccess - Callback to handle success events.
      * @param {string} [room] - Optional room name to join within the channel.
      */
-    private register<T>(channel: string, onError: OnErrorCallback, onSuccess: OnSuccessCallback<T>, room?: string): void {
-        this.socket.on("connect", () => {
-            if (room) {
-                this.socket.emit('join', room);
-            }
-            this.socket.on(`${channel}${room ? `:${room}` : ''}:error`, onError);
-            this.socket.on(`${channel}${room ? `:${room}` : ''}:success`, onSuccess);
-        })
+    private register<T>(channel: string, onSuccess: OnSuccessCallback<T>, onError?: OnErrorCallback, room?: string): void {
+        if (room) {
+            this.socket.emit('join', room);
+        }
+        this.socket.on(`${channel}${room ? `:${room}` : ''}:error`, onError || console.error)
+        this.socket.on(`${channel}${room ? `:${room}` : ''}:success`, onSuccess);
     }
 
     /**
      * Emits an event on the specified channel/room with the provided data and headers.
-     * @param {string} channel - The name of the channel to emit the event on.
+     * @param {string} name - The name of the channel to emit the event on.
      * @param {T} [data] - The data to emit with the event.
-     * @param {LemurSecurity} [security] - Additional headers to send with the event.
+     * @param {string} [token] - Additional headers to send with the event.
      * @param {string} [room] - Optional room name to emit the event in.
      */
-    private emitEvent<T>(channel: string, data?: T, security?: LemurSecurity, room?: string): void {
-        const channelName = `${channel}${room ? `:${room}` : ''}`;
-        this.socket.on("connect", () => {
-            this.socket.emit(channelName, data, { auth: { ...this.socket.auth, ...security } });
-        })
+    private emitEvent<T>(name: string, data?: T, token?: string, room?: string): void {
+        const channel = `${name}${room ? `:${room}` : ''}`;
+        if (token) (data as any).authorization = `Bearer ${token}`
+        this.socket.emit(channel, data);
     }
 
     /**
