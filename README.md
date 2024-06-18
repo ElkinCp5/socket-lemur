@@ -17,21 +17,21 @@ const { SocketServer } = require("socket-lemur");
 const Product = require("./models/Product");
 
 // Initialize SocketServer
-const socketServer = new SocketServer("your-api-key", "your-jwt-secret");
+const server = new SocketServer("your-api-key", "your-jwt-secret");
 
 // Start the server on port
 const PORT = process.env.PORT || 4000;
-socketServer.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Socket run on port http://localhost:${PORT}`);
 });
 
 // Channels
-socketServer.channel(
-  "get/products",
-  async (data, session, onSuccess) => {
+server.channel(
+  "products",
+  async (req, res) => {
     try {
       // Run service
-      const product = new Product(data);
+      const product = new Product(req.body);
       await product.save();
       // Response
       onSuccess(product);
@@ -79,7 +79,7 @@ Establishes channel handling and defines event listeners for Socket.IO.
 Initialize handling for a channel with optional room support.
 
 - `name`: {string} - The name of the channel.
-- `onEvent`: {OnEvent<T, S>} - Callback to handle incoming events.
+- `onEvent`: {onEvent} - Callback to handle incoming events.
 - `tokenRequire`: {boolean} - Whether token authentication is required for events on this channel `false`.
 - `roomSupport`: {boolean} - Whether room support is enabled for this channel `this.roomsEnabled`.
 
@@ -97,28 +97,37 @@ const { SocketClient } = require("socket-lemur");
 const url = "http://localhost:3000";
 
 // Initialize SocketClient with api_key
-const socketClient = new SocketClient(url, { apiKey: "api-key" });
+const socket = new SocketClient(url, { apiKey: "api-key" });
 // Initialize SocketClient with api_key and token
-const socketClient = new SocketClient(url, {
+const socket = new SocketClient(url, {
   apiKey: "api-key",
   token: "token",
 });
 
+const error = (error) => console.error("Event error:", error);
+const success = (data) => console.error("Event success:", data);
 // Connect to a WebSocket channel and define event handlers
-const emitEvent = socketClient.channel(
-  "get/products",
-  (error) => console.error("Event error:", error),
-  (data) => console.log("Event success:", data)
-);
+const emit = socket.channel("products", error, success);
 
 // Example: Emit event
-emitEvent();
+emit();
 
 // Example: Emit event with data
-emitEvent({ message: "Hello, WebSocket!" });
+emit({
+  data: { message: "Hello, WebSocket!" },
+});
 
-// Example: Emit event with data and Auth headers
-emitEvent({ message: "Hello, WebSocket!" }, { token: "your_auth_token" });
+// Example: Emit event with data, params and Auth headers
+emit(
+  {
+    data: { message: "Hello, WebSocket!" },
+    params: {
+      id: "userid",
+      name: "smit",
+    },
+  },
+  { token: "your_auth_token" }
+);
 ```
 
 ### Constructor
@@ -127,8 +136,15 @@ emitEvent({ message: "Hello, WebSocket!" }, { token: "your_auth_token" });
 
 Creates an instance of `SocketClient` to connect to a WebSocket server.
 
+```typescript
+interface Security {
+  apiKey?: string;
+  token?: T;
+}
+```
+
 - `serverUrl`: {string} - The URL of the WebSocket server.
-- `security`: {OpsSecurity} - Optional security options `{apiKey, token}`.
+- `security`: {Security} - Optional security options `{apiKey, token}`.
 - `onError`: {OnErrorCallback} - Optional callback to handle errors.
 
 ### Methods
@@ -141,11 +157,18 @@ Connects to a WebSocket channel and sets up callbacks for error and success even
 - `onError`: {OnErrorCallback} - Callback to handle error events.
 - `onSuccess`: {OnSuccessCallback} - Callback to handle success events.
 - `room`: {string} - Optional room name to join within the channel.
-- `return` {EmitEvent} A function to emit events on the connected channel/room with optional custom headers.
+- `return` {Emit} A function to emit events on the connected channel/room with optional custom headers.
 
-#### EmitEvent(data, security)()
+#### Emit(data, security)()
 
 Emits an event on the specified channel/room with the provided data and headers.
 
-- `data` {T | undefined} - The data to emit with the event.
-- `security` {OpsSecurity | undefined} - Additional headers to send with the event `{token}`.
+```typescript
+interface Data {
+  params?: Record<string, any>;
+  data: T;
+}
+```
+
+- `data` {Data | undefined} - The data to emit with the event.
+- `security` {Security | undefined} - Additional headers to send with the event `{token}`.
