@@ -101,7 +101,7 @@ export class SocketServer<Session> extends TokenManager {
      * @param {boolean} [tokenRequire=false] - Whether token authentication is required for events on this channel.
      * @param {boolean} [roomSupport=this.roomsEnabled] - Whether room support is enabled for this channel.
      */
-    public channel<T>(
+    public channel<T extends any = {}>(
         name: string,
         onEvent: LemurEvent<T, Session>,
         tokenRequire: boolean = false,
