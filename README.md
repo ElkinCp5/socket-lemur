@@ -8,51 +8,78 @@ Ensure you have Node.js and npm installed. Then install the required packages:
 
     `npm install socket-lemur`
 
-### UsageUsage
+### Usage
 
 Initialize the `SocketServer` instance and define custom event handlers for your application.
 
-```javascript
+```typescript
 const { SocketServer } = require("socket-lemur");
-const Product = require("./models/Product");
 
-// Initialize SocketServer
-const server = new SocketServer("your-api-key", "your-jwt-secret");
-
-// Start the server on port
+// Port Definition
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log(`Socket run on port http://localhost:${PORT}`);
+
+// SocketServer Definition
+const server = new SocketServer<{ id: string }>({
+  apikey: "api-key",
+  secret: "jwt-secret",
+  roomsEnabled: true,
 });
 
-// Channels
-server.channel(
-  "products",
-  async (req, res) => {
-    try {
-      // Run service
-      const product = new Product(req.body);
-      await product.save();
-      // Response
-      onSuccess(product);
-    } catch (error) {
-      console.error("Error creating product:", error);
-      throw new Error("Product creation failed");
-    }
+const data = [
+  { id: 1, name: "Pizza" },
+  { id: 2, name: "Pasta" },
+];
+
+// Actions Definition
+async function get() {
+  return data;
+}
+
+async function add(product: { name: string }) {
+  data.push({ id: data.length + 1, name: product.name });
+  return data;
+}
+
+// Channels Definition
+server.channel<any[]>("get/products", async function (_, res) {
+  const products = await get();
+  res(products);
+});
+
+server.channel<{ name: string }>(
+  "post/products",
+  async function (req, res) {
+    const products = await add(req.body);
+    res(products);
   },
-  true // Requires JWT authentication
+  true
 );
+
+// Server run on port
+server.listen(PORT, function () {
+  console.log(`Server Run http://localhost:${PORT}`);
+});
+
+// On connection
+server.connection({
+  on: function () {
+    console.log("onConnection");
+  },
+  off: function () {
+    console.log("onDisconnect");
+  },
+});
 
 // More event definitions can be added here
 ```
 
 ### Constructor
 
-#### `new SocketServer<S>(apikey?, secret?, settings?, roomsEnabled?)`
+#### `new SocketServer<S>(settings?)`
 
 Creates a new instance of `SocketServer`.
 
-```javascript
+```typescript
 const default: Partial<ServerOptions> = {
     cors: {
         origin: "*", // Configure CORS as needed
@@ -65,10 +92,10 @@ const default: Partial<ServerOptions> = {
 
 - `apikey` (optional): API key for validating requests.
 - `secret` (optional): Secret key for JWT token validation.
-- `settings` (optional): Socket.IO server settings `default`.
+- `options` (optional): Socket.IO server settings `default`.
 - `roomsEnabled` (optional): Whether to enable room support `false`.
 
-### MethodsMethods
+### Methods
 
 #### channel<T>(name, onEvent, tokenRequire, roomSupport)
 
@@ -83,6 +110,22 @@ Initialize handling for a channel with optional room support.
 - `tokenRequire`: {boolean} - Whether token authentication is required for events on this channel `false`.
 - `roomSupport`: {boolean} - Whether room support is enabled for this channel `this.roomsEnabled`.
 
+### listen:
+
+This method receives the same parameters or configuration from an http server.
+
+- `port`: {number}.
+- `hostname`: {string}.
+- `backlog`: {number}.
+- `listeningListener`: {function}.
+
+### connection:
+
+The server's connection method receives an object with two properties on and off, on detects when a client connects and off when that client disconnects.
+
+- `on`: {function} connection callback function.
+- `off`: {function} disconnection callback function.
+
 # SocketClient
 
 `SocketClient` class facilitates WebSocket communication with a server using Socket.IO.
@@ -91,42 +134,49 @@ Initialize handling for a channel with optional room support.
 
 Initialize `SocketClient` to connect to a WebSocket server and handle events.
 
-```javascript
+```typescript
 const { SocketClient } = require("socket-lemur");
 
-const url = "http://localhost:3000";
+const PORT = 3030;
+const url = `http://localhost:${PORT}`;
 
 // Initialize SocketClient with api_key
-const socket = new SocketClient(url, { apiKey: "api-key" });
+const socket = new SocketClient(url, {
+  apiKey: "api-key",
+});
 // Initialize SocketClient with api_key and token
 const socket = new SocketClient(url, {
   apiKey: "api-key",
   token: "token",
 });
 
-const error = (error) => console.error("Event error:", error);
-const success = (data) => console.error("Event success:", data);
+function error(error) {
+  console.error("Event error:", error);
+}
+function success(data) {
+  console.error("Event success:", data);
+}
 // Connect to a WebSocket channel and define event handlers
-const emit = socket.channel("products", error, success);
-
-// Example: Emit event
-emit();
-
-// Example: Emit event with data
-emit({
-  data: { message: "Hello, WebSocket!" },
+const postProduct = socket.channel<any>("post/products", {
+  onSuccess: success,
+  onError: error,
+  room: "post",
 });
 
-// Example: Emit event with data, params and Auth headers
-emit(
+const geProducts = socket.channel<any[]>("get/products", {
+  onSuccess: success,
+  onError: error,
+});
+
+geProducts.on(); // Adds the listener function to the end of the listeners array for the event named eventName.
+geProducts.off(); // Removes the specified listener from the listener array for the event named eventName.
+geProducts.emit();
+postProduct.emit(
   {
-    data: { message: "Hello, WebSocket!" },
-    params: {
-      id: "userid",
-      name: "smit",
-    },
+    data: { name: "coffe" },
+    params: { room: "post" },
   },
-  { token: "your_auth_token" }
+  "tokent"
 );
 ```
 
@@ -139,7 +189,7 @@ Creates an instance of `SocketClient` to connect to a WebSocket server.
 ```typescript
 interface Security {
   apiKey?: string;
-  token?: T;
+  token?: string;
 }
 ```
 
@@ -149,26 +199,23 @@ interface Security {
 
 ### Methods
 
-#### channel<T>(channel, onError, onSuccess, room): EmitEvent
+#### channel<T>(name, opts: LemurOpts<T>): EmitEvent
 
 Connects to a WebSocket channel and sets up callbacks for error and success events.
 
-- `channel`: {string} - The name of the channel to connect to.
-- `onError`: {OnErrorCallback} - Callback to handle error events.
-- `onSuccess`: {OnSuccessCallback} - Callback to handle success events.
-- `room`: {string} - Optional room name to join within the channel.
-- `return` {Emit} A function to emit events on the connected channel/room with optional custom headers.
-
-#### Emit(data, security)()
-
-Emits an event on the specified channel/room with the provided data and headers.
-
 ```typescript
-interface Data {
-  params?: Record<string, any>;
-  data: T;
-}
+declare type LemurOpts<T> = {
+  onSuccess: OnSuccessCallback<T>;
+  onError?: OnErrorCallback;
+  room?: string;
+};
 ```
 
-- `data` {Data | undefined} - The data to emit with the event.
-- `security` {Security | undefined} - Additional headers to send with the event `{token}`.
+- `name`: {string} - The name of the channel to connect to.
+- `opts`: {LemurOpts} - The options for the channel, including success and error callbacks, and an optional room.
+
+#### The channel method returns an object with multiple actions
+
+- `emit`: {(data?, token?) => void} - Emits an event to the channel with optional data and token.
+- `off`: {() =>void} - Removes the event listeners for the channel.
+- `on`: {() =>void} - Event listeners for the channel.
