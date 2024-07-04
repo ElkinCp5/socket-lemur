@@ -1,35 +1,35 @@
 import { io, ManagerOptions, Socket as SocketIOClient, SocketOptions } from 'socket.io-client';
-import { LemurData, LemurEmit, LemurSecurity, OnErrorCallback, OnSuccessCallback } from './dts/types';
-
-
+import { OnErrorCallback, LemurOpts, LemurData, LemurSecurity } from './dts/types';
+import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 
 export class SocketClient {
-    private socket: SocketIOClient;
+    protected socket: SocketIOClient<DefaultEventsMap, DefaultEventsMap>;
 
     /**
      * Creates an instance of SocketClient.
-     * @param {string} serverUrl - The URL of the WebSocket server.
+     * @param {string} url - The URL of the WebSocket server.
      * @param {LemurSecurity} [security] - Optional security options.
      * @param {OnErrorCallback} [onError] - Optional callback to handle errors.
      */
     constructor(
-        private readonly serverUrl: string,
+        private readonly url: string,
         private readonly security?: LemurSecurity,
-        onError?: OnErrorCallback
+        onError: OnErrorCallback = (error: any) => console.error(`Connect error: ${error}`)
     ) {
-        this.socket = this.init(this.serverUrl, this.security, onError);
+        this.connected = this.connected.bind(this);
+        this.connect = this.connect.bind(this);
+        this.disconnect = this.disconnect.bind(this);
+        this.channel = this.channel.bind(this);
+        this.emit = this.emit.bind(this);
+        this.off = this.off.bind(this);
+        this.on = this.on.bind(this);
+
+        this.socket = io(this.url, this.setOpt(this.security))
+            .on("connect_error", onError);
     }
 
-    /**
-     * Initializes the socket connection with the provided server URL and headers.
-     * @param {string} serverUrl - The URL of the WebSocket server.
-     * @param {LemurSecurity} [security] - Optional security options.
-     * @param {OnErrorCallback} [onError] - Optional callback to handle errors.
-     * @returns {SocketIOClient} The initialized socket instance.
-     */
-    private init(serverUrl: string, security?: Partial<LemurSecurity & ManagerOptions & SocketOptions>, onError?: OnErrorCallback): SocketIOClient {
+    private setOpt(security?: Partial<LemurSecurity & ManagerOptions & SocketOptions>) {
         const opts: Record<string, any> = { auth: {}, autoConnect: false };
-
         if (security) {
             for (const [key, value] of Object.entries(security)) {
                 switch (key) {
@@ -45,104 +45,118 @@ export class SocketClient {
                 }
             }
         }
-
-        return io(serverUrl, opts).on("connect_error", (e: any) => onError || console.error(`Connect error: ${e}`));
+        return opts;
     }
 
     /**
-     * Connect to a channel and optionally a room, and set up callbacks for error and success events.
-     * @param {string} channel - The name of the channel to connect to.
-     * @param {OnErrorCallback} onError - Callback to handle error events.
-     * @param {OnSuccessCallback} onSuccess - Callback to handle success events.
-     * @param {string} [room] - Optional room name to join within the channel.
-     * @returns {LemurEmit} A function to emit events on the connected channel/room with optional custom headers.
-     */
-    public channel<T>(channel: string, onSuccess: OnSuccessCallback<T>, onError?: OnErrorCallback, room?: string): LemurEmit<T> {
-        this.register(channel, onSuccess, onError, room);
-        /**
-         * Emits an event on the specified channel/room with the provided data and headers.
-         * @param {T | undefined} [data] - The data to emit with the event.
-         * @param {string | undefined} [token] - Additional headers to send with the event.
-         * @returns {void}
-         */
-        return (data?: LemurData<T>, token?: string): void => {
-            this.emitEvent(channel, data, token, room);
+    * Creates a new channel for communication.
+    *
+    * @template T - The type of data that the channel handles.
+    * @param {string} name - The name of the channel.
+    * @param {LemurOpts<T>} opts - The options for the channel, including success and error callbacks, and an optional room.
+    * @returns An object with `on` and `off` methods to manage the channel.
+    */
+    public channel<T>(name: string, opts: LemurOpts<T>) {
+        return {
+            /**
+             * Emits an event to the channel with optional data and token.
+             *
+             * @param {LemurData<T>} [data] - The data to be sent with the event.
+             * @param {string} [token] - An optional token for authentication.
+             */
+            emit: (data?: LemurData<T>, token?: string): void => this.emit(name, data, token, opts.room),
+            /**
+             * Removes the event listeners for the channel.
+             */
+            off: () => this.off(name, opts.room),
+            /**
+             * Event listeners for the channel.
+             */
+            on: () => this.on(name, opts)
         };
     }
 
     /**
-     * Registers a channel and optionally a room with the provided callbacks for error and success events.
-     * @param {string} channel - The name of the channel to register.
-     * @param {OnErrorCallback} onError - Callback to handle error events.
-     * @param {OnSuccessCallback} onSuccess - Callback to handle success events.
-     * @param {string} [room] - Optional room name to join within the channel.
+     * Connected from the WebSocket server.
      */
-    private register<T>(channel: string, onSuccess: OnSuccessCallback<T>, onError?: OnErrorCallback, room?: string): void {
-        if (room) {
-            this.socket.emit('join', room);
-        }
-        this.socket.on(`${channel}${room ? `:${room}` : ''}:error`, onError || console.error)
-        this.socket.on(`${channel}${room ? `:${room}` : ''}:success`, onSuccess);
+    public connected(): boolean {
+        return this.socket.connected;
     }
 
     /**
-     * Emits an event on the specified channel/room with the provided data and headers.
-     * @param {string} name - The name of the channel to emit the event on.
-     * @param {T} [data] - The data to emit with the event.
-     * @param {string} [token] - Additional headers to send with the event.
-     * @param {string} [room] - Optional room name to emit the event in.
+     * Connect from the WebSocket server.
      */
-    private emitEvent<T>(name: string, data?: T, token?: string, room?: string): void {
-        const channel = `${name}${room ? `:${room}` : ''}`;
-        if (token) (data as any).authorization = `Bearer ${token}`
-        this.socket.emit(channel, data);
+    public connect() {
+        return this.socket.connect();
     }
 
     /**
      * Disconnect from the WebSocket server.
      */
-    public disconnect(): void {
-        this.socket.disconnect();
-    }
-
-    /**
-     * Reconnect to the WebSocket server.
-     */
-    public reconnect(): void {
-        this.socket.connect();
+    public disconnect() {
+        return this.socket.disconnect();
     }
 
     /**
      * Join a channel without setting up callbacks.
-     * @param {string} channel - The name of the channel to join.
+     * @param {string} name - The name of the channel to join.
+     * @param {string} room - The room of the channel to join.
      */
-    public joinChannel(channel: string): void {
-        this.socket.emit('join', channel);
+    public join(name: string, room?: string): void {
+        this.socket.emit(`${name}:join`, room);
     }
 
     /**
      * Leave a channel.
-     * @param {string} channel - The name of the channel to leave.
-     */
-    public leaveChannel(channel: string): void {
-        this.socket.emit('leave', channel);
+     * @param {string} name - The name of the channel to leave.
+     * @param {string} room - The room of the channel to leave.
+    */
+    public leave(name: string, room?: string): void {
+        this.socket.emit(`${name}:leave`, room);
     }
 
     /**
-     * Join a specific room within a channel.
-     * @param {string} channel - The name of the channel to join.
-     * @param {string} room - The name of the room to join.
+     * Registers event listeners for the specified channel.
+     *
+     * @template T - The type of data that the channel handles.
+     * @param {string} channel - The name of the channel.
+     * @param {LemurOpts<T>} opts - The options for the channel, including success and error callbacks, and an optional room.
      */
-    public joinRoom(channel: string, room: string): void {
-        this.socket.emit('join', `${channel}:${room}`);
+    private on<T>(channel: string, opts: LemurOpts<T>): void {
+        if (opts?.room) this.socket.emit(`${channel}:join`, opts.room);
+        this.socket.on(`${channel}:error`, opts?.onError || console.error);
+        this.socket.on(`${channel}:success`, opts.onSuccess);
     }
 
     /**
-     * Leave a specific room within a channel.
-     * @param {string} channel - The name of the channel to leave.
-     * @param {string} room - The name of the room to leave.
+     * Removes the event listeners for the specified channel.
+     *
+     * @param {string} channel - The name of the channel.
+     * @param {string} [room] - The name of the room to leave, if applicable.
      */
-    public leaveRoom(channel: string, room: string): void {
-        this.socket.emit('leave', `${channel}:${room}`);
+    private off(channel: string, room?: string): void {
+        if (room) this.socket.off(`${channel}:join`);
+        this.socket.off(`${channel}:error`);
+        this.socket.off(`${channel}:success`);
     }
+
+    /**
+     * Emits an event to the specified channel with optional data and token.
+     *
+     * @template T - The type of data that the channel handles.
+     * @param {string} name - The name of the channel.
+     * @param {LemurData<T>} [data] - The data to be sent with the event.
+     * @param {string} [token] - An optional token for authentication.
+     * @param {string} [room] - The name of the room to emit the event to, if applicable.
+     */
+    private emit<T>(name: string, data?: LemurData<T>, token?: string, room?: string): void {
+        const state = {
+            params: data?.params || {},
+            data: data?.data || {} as any
+        };
+        if (token) state.params.authorization = `Bearer ${token}`;
+        if (room) state.params.room = room;
+        this.socket.emit(name, state);
+    }
+
 }
