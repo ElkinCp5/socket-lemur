@@ -1,9 +1,12 @@
 import { io, ManagerOptions, Socket as SocketIOClient, SocketOptions } from 'socket.io-client';
 import { OnErrorCallback, LemurOpts, LemurData, LemurSecurity } from './dts/types';
-import { DefaultEventsMap } from 'socket.io/dist/typed-events';
+
+export interface EventsMap {
+    [event: string]: (...args: any[]) => void;
+}
 
 export class SocketClient {
-    protected socket: SocketIOClient<DefaultEventsMap, DefaultEventsMap>;
+    protected socket: SocketIOClient<EventsMap, EventsMap>;
 
     /**
      * Creates an instance of SocketClient.
