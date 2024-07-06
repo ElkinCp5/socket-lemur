@@ -219,3 +219,21 @@ declare type LemurOpts<T> = {
 - `emit`: {(data?, token?) => void} - Emits an event to the channel with optional data and token.
 - `off`: {() =>void} - Removes the event listeners for the channel.
 - `on`: {() =>void} - Event listeners for the channel.
+
+### Annotations
+
+To implement SocketClient in vite you must configure this plugin to use Buffer.
+
+- `npm i -D vite-plugin-node-polyfills`
+
+```javascript
+import { defineConfig } from "vite";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
+
+export default defineConfig({
+  plugins: [
+    // ... other plugin
+    nodePolyfills(),
+  ],
+});
+```
