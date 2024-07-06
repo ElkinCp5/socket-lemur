@@ -1,8 +1,5 @@
-import 'socket.io';
-import { Socket } from 'socket.io';
 import { ManagerOptions, SocketOptions } from 'socket.io-client';
 
-declare type LemurSocket<T extends any> = Socket<any, any, any, any, T>;
 declare interface LemurSecurity extends Partial<& ManagerOptions & SocketOptions> {
     apiKey?: string,
     token?: string

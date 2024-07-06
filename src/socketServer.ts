@@ -2,7 +2,8 @@ import { createServer, Server as HTTPServer } from 'http';
 import { Server as SocketIOServer, ServerOptions } from 'socket.io';
 import { ListenOptions } from 'net';
 import { TokenManager } from './tokenManager';
-import { LemurNext, LemurEvent, LemurData, Params, LemurRequest, LemurSocket, Channel, ConnectionOpt, ServerSettings } from './dts/types';
+import { LemurSocket } from './dts/node';
+import { ServerSettings, LemurNext, ConnectionOpt, LemurData, Params, LemurEvent, LemurRequest, Channel } from './dts/browser';
 
 /**
  * SocketServer class for handling Socket.IO connections with optional room support.

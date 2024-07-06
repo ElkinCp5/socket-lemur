@@ -1,5 +1,5 @@
 import { io, ManagerOptions, Socket as SocketIOClient, SocketOptions } from 'socket.io-client';
-import { OnErrorCallback, LemurOpts, LemurData, LemurSecurity } from './dts/types';
+import { LemurData, LemurOpts, LemurSecurity, OnErrorCallback } from './dts/browser';
 
 export interface EventsMap {
     [event: string]: (...args: any[]) => void;
