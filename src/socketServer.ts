@@ -172,7 +172,11 @@ export class SocketServer<Session> extends TokenManager {
         }
 
         try {
-            event(data, (res: any) => this.success(name, socket, res, room));
+            event(
+                data,
+                (res: any) => this.success(name, socket, res, room),
+                (error: any) => this.error(name, socket, error, room)
+            );
         } catch (error: any) {
             this.error(name, socket, error?.message || error, room);
         }
@@ -206,7 +210,7 @@ export class SocketServer<Session> extends TokenManager {
     private error(
         channel: string,
         socket: LemurSocket<Session>,
-        error: string,
+        error: any,
         room: string | undefined
     ) {
         if (room) {

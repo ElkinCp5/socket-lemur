@@ -21,7 +21,8 @@ declare type LemurOpts<T> = {
 }
 declare type LemurNext = (err?: any | undefined) => void;
 declare type LemurResponse = (data: any) => void;
-declare type LemurEvent<T, S> = (request: LemurRequest<T, S>, response: LemurResponse) => void;
+declare type LemurCatch = (data: any) => void;
+declare type LemurEvent<T, S> = (request: LemurRequest<T, S>, response: LemurResponse, error: LemurCatch) => void;
 declare interface LemurEmit<T> {
     on: (data?: LemurData<T>, token?: string) => void
     off: () => void
