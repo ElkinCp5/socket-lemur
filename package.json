@@ -1,6 +1,6 @@
 {
   "name": "socket-lemur",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "main": "dist/server/index.js",
   "browser": "dist/browser/index.js",
   "scripts": {
