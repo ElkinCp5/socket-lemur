@@ -27,11 +27,11 @@ server.channel<any>('get/products', async (_, res) => {
     res(products)
 });
 
-server.channel<{ name: string }>('post/products', async (req, res, error) => {
+server.customChannel<{ name: string }>('post/products', async (req, { emit, to }, error) => {
     try {
         if (!req.body.name) throw new Error("field name is required!.");
         const products = await add(req.body);
-        res(products);
+        emit('', products);
     } catch (err: any) {
         error(err?.message)
     }

@@ -41,6 +41,22 @@ async function add(product: { name: string }) {
 }
 
 // Channels Definition
+server.customChannel<{ name: string }>(
+  "post/products",
+  async (req, { emit, to, room }, error) => {
+    try {
+      if (!req.body.name) throw new Error("field name is required!.");
+      const products = await add(req.body);
+
+      // emit
+      emit("custom response channel", products);
+      to("custom response channel", products, room);
+    } catch (err: any) {
+      error(err?.message);
+    }
+  }
+);
+
 server.channel<any[]>("get/products", async function (_, res) {
   const products = await get();
   res(products);

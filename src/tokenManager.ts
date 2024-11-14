@@ -13,12 +13,12 @@ export class TokenManager {
      * @param {string} secret - The secret key used to verify the token.
      * @returns {T | undefined} The decoded token payload if verification is successful, otherwise undefined.
      */
-    extract<T>(token: string, secret: string): T | undefined {
+    extract<T>(token: string, secret: string): T {
         try {
             return jwt.verify(token, secret) as T;
         } catch (error: any) {
             console.error('Token failed:', error.message);
-            return undefined;
+            return {} as T;
         }
     }
 
