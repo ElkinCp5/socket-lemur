@@ -1,40 +1,86 @@
 import React from "react";
 import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
+import { socketClient } from "./util";
+// import { Socket } from "socket.io-client";
+import { SocketClient } from "../../../src/socketClient";
+// import { SocketIO } from "./util";
 import "./App.css";
-import { socket } from "./util";
 
 function App() {
   const ref = React.useRef<HTMLInputElement>(null);
+  const [client, setClient] = React.useState<SocketClient>();
+  // const [socket, setSocket] = React.useState<Socket>();
   const [products, setProduct] = React.useState<Array<any>>([]);
 
   const onError = (error: any) => console.error("error:", error);
-  const onSuccess = (products: any[]) => (
-    setProduct(products), ref.current ? (ref.current.value = "") : null
-  );
-
-  const onAction = () => {
-    socket.channel<any>("get/products", onSuccess, onError)();
+  const onSuccess = (products: any[]) => {
+    setProduct(products);
+    ref.current ? (ref.current.value = "") : null;
   };
+  const postProduct = client?.channel<any>("post/products", {
+    onSuccess,
+    onError,
+    room: "post",
+  });
+  const geProducts = client?.channel<any[]>("get/products", {
+    onSuccess,
+    onError,
+  });
 
   function onSubmit(evt: any) {
     evt.preventDefault();
     const formData = new FormData(evt.target);
-    const form: any = Object.fromEntries(formData.entries());
-    socket.channel<any>(
-      "post/products",
-      onSuccess,
-      onError
-    )(
-      { data: form },
+    const data: any = Object.fromEntries(formData.entries());
+    // if (!client) return;
+    // socket.emit("post/products", {
+    //   data,
+    //   params: {
+    //     authorization: `Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJPbmxpbmUgSldUIEJ1aWxkZXIiLCJpYXQiOjE3MTg2ODUyNTAsImV4cCI6MTc1MDIyMTI1MCwiYXVkIjoid3d3LmV4YW1wbGUuY29tIiwic3ViIjoianJvY2tldEBleGFtcGxlLmNvbSIsImlkIjoiMTAifQ.40c99sLFuDOVY5CpQa_Rn9_2v2Zwx-WhmpmNKcIRXJc`,
+    //   },
+    // });
+    postProduct?.emit(
+      { data: data, params: { room: "post" } },
       "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJPbmxpbmUgSldUIEJ1aWxkZXIiLCJpYXQiOjE3MTg2ODUyNTAsImV4cCI6MTc1MDIyMTI1MCwiYXVkIjoid3d3LmV4YW1wbGUuY29tIiwic3ViIjoianJvY2tldEBleGFtcGxlLmNvbSIsImlkIjoiMTAifQ.40c99sLFuDOVY5CpQa_Rn9_2v2Zwx-WhmpmNKcIRXJc"
     );
   }
 
   React.useEffect(() => {
-    socket.reconnect();
-    onAction();
+    setClient(socketClient());
+    // setSocket(
+    //   SocketIO(
+    //     "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJPbmxpbmUgSldUIEJ1aWxkZXIiLCJpYXQiOjE3MTg2ODUyNTAsImV4cCI6MTc1MDIyMTI1MCwiYXVkIjoid3d3LmV4YW1wbGUuY29tIiwic3ViIjoianJvY2tldEBleGFtcGxlLmNvbSIsImlkIjoiMTAifQ.40c99sLFuDOVY5CpQa_Rn9_2v2Zwx-WhmpmNKcIRXJc"
+    //   )
+    // );
   }, []);
+
+  // React.useEffect(() => {
+  //   if (!socket) return;
+  //   if (socket.connected) return;
+  //   socket.connect();
+  //   console.log({ status: socket.id });
+  //   socket.on("get/products:success", onSuccess);
+  //   socket.on("post/products:success", onSuccess);
+  //   socket.emit("get/products", {});
+  //   return () => {
+  //     socket.off("get/products");
+  //     socket.off("post/products");
+  //   };
+  // }, [socket]);
+
+  React.useEffect(() => {
+    if (!client) return;
+    if (client.connected()) return;
+    client.connect();
+    console.log({ status: client.connected() });
+    geProducts?.on();
+    postProduct?.on();
+    geProducts?.emit();
+    return () => {
+      geProducts?.off();
+      postProduct?.off();
+    };
+  }, [client]);
 
   return (
     <>

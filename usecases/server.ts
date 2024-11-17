@@ -2,13 +2,13 @@ import { SocketServer } from '../';
 
 
 type Session = { id: string };
-const socket = new SocketServer<Session>('api-key', 'jwt-secret');
-
 const PORT = process.env.PORT || 3030
-// Start the server on port
-socket.listen(PORT, () => {
-    console.log(`Server Run http://localhost:${PORT}`);
+const server = new SocketServer<Session>({
+    apikey: 'api-key',
+    secret: 'jwt-secret',
+    roomsEnabled: true
 });
+
 
 async function get() {
     return data;
@@ -21,12 +21,33 @@ async function add(product: { name: string }) {
 
 const data = [{ id: 1, name: 'Pizza' }, { id: 2, name: 'Pasta' }];
 
-socket.channel<any>('get/products', async (_, res) => {
+// Channel Defained
+server.channel<any>('get/products', async (_, res) => {
     const products = await get();
     res(products)
 });
 
-socket.channel<{ name: string }>('post/products', async (req, res) => {
-    const products = await add(req.body);
-    res(products);
-}, true);
+server.customChannel<{ name: string }>('post/products', async (req, { emit, to }, error) => {
+    try {
+        if (!req.body.name) throw new Error("field name is required!.");
+        const products = await add(req.body);
+        emit('', products);
+    } catch (err: any) {
+        error(err?.message)
+    }
+});
+
+// Server run on port
+server.listen(PORT, () => {
+    console.log(`Server Run http://localhost:${PORT}`);
+});
+
+// on Connection
+server.connection({
+    on: () => {
+        console.log("onConnection")
+    },
+    off: () => {
+        console.log("onDisconnect")
+    }
+});
