@@ -27,8 +27,10 @@ export class SocketClient {
         this.off = this.off.bind(this);
         this.on = this.on.bind(this);
 
-        this.socket = io(this.url, this.setOpt(this.security))
-            .on("connect_error", onError);
+        this.socket = io(
+            this.url,
+            this.setOpt(this.security)
+        ).on("connect_error", onError);
     }
 
     private setOpt(security?: Partial<LemurSecurity & ManagerOptions & SocketOptions>) {
@@ -71,7 +73,7 @@ export class SocketClient {
             /**
              * Removes the event listeners for the channel.
              */
-            off: () => this.off(name, opts.room),
+            off: () => this.off(name, opts),
             /**
              * Event listeners for the channel.
              */
@@ -127,20 +129,28 @@ export class SocketClient {
      */
     private on<T>(channel: string, opts: LemurOpts<T>): void {
         if (opts?.room) this.socket.emit(`${channel}:join`, opts.room);
+        if (opts?.successChannel) {
+            this.socket.on(`${opts?.successChannel}:success`, opts.onSuccess);
+        } else {
+            this.socket.on(`${channel}:success`, opts.onSuccess);
+        }
         this.socket.on(`${channel}:error`, opts?.onError || console.error);
-        this.socket.on(`${channel}:success`, opts.onSuccess);
     }
 
     /**
      * Removes the event listeners for the specified channel.
      *
      * @param {string} channel - The name of the channel.
-     * @param {string} [room] - The name of the room to leave, if applicable.
+     * @param {LemurOpts<any>} opts - The options for the channel, including success and error callbacks, and an optional room.
      */
-    private off(channel: string, room?: string): void {
-        if (room) this.socket.off(`${channel}:join`);
+    private off(channel: string, opts: Omit<LemurOpts<any>, 'onSuccess' | 'onError'>): void {
+        if (opts?.room) this.socket.off(`${channel}:join`);
+        if (opts?.successChannel) {
+            this.socket.off(`${opts?.successChannel}:success`);
+        } else {
+            this.socket.off(`${channel}:success`);
+        }
         this.socket.off(`${channel}:error`);
-        this.socket.off(`${channel}:success`);
     }
 
     /**

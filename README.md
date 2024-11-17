@@ -25,6 +25,21 @@ const server = new SocketServer<{ id: string }>({
   roomsEnabled: true,
 });
 
+// SocketServer Definition whit app express
+import express from "express";
+import { createServer } from "http";
+
+const app = express();
+const httpServer = createServer(app);
+const server = new SocketServer<{ id: string }>(
+  {
+    apikey: "api-key",
+    secret: "jwt-secret",
+    roomsEnabled: true,
+  },
+  httpServer
+);
+
 const data = [
   { id: 1, name: "Pizza" },
   { id: 2, name: "Pasta" },
@@ -176,6 +191,14 @@ function success(data) {
 const postProduct = socket.channel<any>("post/products", {
   onSuccess: success,
   onError: error,
+  room: "post",
+});
+
+// Response custom channel
+const postProduct = socket.channel<any>("post/products", {
+  onSuccess: success,
+  onError: error,
+  successChannel: 'custom/products'
   room: "post",
 });
 

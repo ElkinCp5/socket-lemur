@@ -16,8 +16,9 @@ declare type LemurData<T> = {
     data: T;
 }
 declare type LemurOpts<T> = {
-    onSuccess: OnSuccessCallback<T>,
-    onError?: OnErrorCallback,
+    onSuccess: OnSuccessCallback<T>
+    onError?: OnErrorCallback
+    successChannel?: string
     room?: string
 }
 declare type LemurNext = (err?: any | undefined) => void;
