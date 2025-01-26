@@ -3,10 +3,24 @@ import { Server as SocketIOServer, ServerOptions } from 'socket.io';
 import { ListenOptions } from 'net';
 import { LemurSocket } from './dts/node';
 import { LoggerSystem } from './dts/logger';
-import { ServerSettings, LemurNext, ConnectionOpt, LemurData, Params, LemurEvent, LemurRequest, Channel, LemurCustomEvent, LemurStandard, ExpirationTime } from './dts/browser';
 import { TokenManager } from './tokenManager';
 import { ExpiringMap } from './lib/expiring-map';
 import { Logger } from './lib/logger';
+import { WebPushLemur } from './lib/web-push-lemur';
+import { Subscription } from './dts/push';
+import {
+    ServerSettings,
+    LemurNext,
+    ConnectionOpt,
+    LemurData,
+    Params,
+    LemurEvent,
+    LemurRequest,
+    Channel,
+    ExpirationTime,
+    LemurCustomEvent,
+    LemurSimpleEvent,
+} from './dts/browser';
 
 /**
  * SocketServer class for handling Socket.IO connections with optional room support.
@@ -17,12 +31,14 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
     private authorization?: string;
     private rooms: ExpiringMap<Set<LemurSocket<Session>>>;
     private channels: Map<string, Channel<Session>>;
+    // Settings libreries
+    private pushManager?: WebPushLemur<Subscription>;
+    private logger: LoggerSystem = new Logger("logger-console");
 
 
     constructor(
         private readonly settings?: ServerSettings,
-        private readonly httpServer?: HTTPServer,
-        private readonly logger: LoggerSystem = new Logger("logger-console"),
+        private readonly httpServer?: HTTPServer
     ) {
         super();
         const optsDefault: Partial<ServerOptions> = {
@@ -88,6 +104,16 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         });
     }
 
+    public setLogger(logger?: LoggerSystem) {
+        if (logger) this.logger = logger;
+        return this;
+    }
+
+    public setWebPush(pushManager?: WebPushLemur<Subscription>) {
+        if (pushManager) this.pushManager = pushManager;
+        return this;
+    }
+
     /**
      * Initialize handling for a channel with optional room support.
      * @param {string} name - The name of the channel.
@@ -97,14 +123,14 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
      */
     public channel<T extends Record<string, any>>(
         name: string,
-        onEvent: LemurStandard<T, Session>,
+        onEvent: LemurSimpleEvent<T, Session>,
         tokenRequired: boolean = false,
         roomSupport: boolean = this.roomExpirationTime().state,
     ) {
         if (this.channels.has(name)) {
             return; // Channel already configured, do not reconfigure
         }
-        this.channels.set(name, { onEvent, tokenRequired, roomSupport });
+        this.channels.set(name, { onEvent, tokenRequired, roomSupport, pushManager: this.pushManager });
     }
 
     /**
@@ -123,7 +149,7 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         if (this.channels.has(name)) {
             return; // Channel already configured, do not reconfigure
         }
-        this.channels.set(name, { onEvent, tokenRequired, roomSupport });
+        this.channels.set(name, { onEvent, tokenRequired, roomSupport, pushManager: this.pushManager });
     }
 
     private roomExpirationTime(): Omit<ExpirationTime, "state"> & { state: boolean } {
@@ -209,27 +235,38 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
             data.session = session;
         }
 
-        // Guardia de tipo para verificar si un evento es de tipo `LemurCustomEvent`
+        // Guardias de tipo para distinguir entre los diferentes tipos de eventos
         function isLemurCustomEvent<T, S>(event: LemurEvent<T, S>): event is LemurCustomEvent<T, S> {
             return 'socket' in (event as LemurCustomEvent<T, S>);
         }
 
         try {
+            // Manejo de eventos con `webPush`
+            if (isLemurCustomEvent(event)) {
+                return event(
+                    data,
+                    {
+                        room,
+                        to: (channel: string, data: any, room: string) => this.success(channel, room, data),
+                        emit: (channel: string, data: any) => this.success(channel, socket, data),
+                    },
+                    (error: string) => this.error(channelName, room || socket, error),
+                    this.pushManager
+                );
+            }
 
-            if (isLemurCustomEvent(event)) return event(data, {
-                room,
-                to: (channel: string, data: any, room: string) => this.success(channel, room, data),
-                emit: (channel: string, data: any) => this.success(channel, socket, data),
-            }, (error: string) => this.error(channelName, room || socket, error));
-            else return event(
+            // Manejo de eventos estándar
+            return event(
                 data,
                 (response: any) => this.success(channelName, room || socket, response),
-                (error: string) => this.error(channelName, room || socket, error)
+                (error: string) => this.error(channelName, room || socket, error),
+                this.pushManager
             );
         } catch (error: any) {
             this.error(channelName, room || socket, error?.message || error);
         }
     }
+
 
     /**
      * Emit success event to a socket.
