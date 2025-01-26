@@ -18,6 +18,7 @@ export class WebPushLemur<T extends Subscription & Record<string, any>> {
      */
     constructor(
         private readonly settings: Settings,
+        private readonly key: Keys = "id",
         private readonly memory: Memory<T> = new PushLocalMemory(),
         private readonly metricsMemory: MetricsMemory = new MetricsLocalMemory(),
         private readonly logger: LoggerSystem = new Logger("logger-console"),
@@ -57,7 +58,7 @@ export class WebPushLemur<T extends Subscription & Record<string, any>> {
      * @param {Keys} key - The key used to identify subscriptions (default is "id").
      * @returns {Promise<void>} A promise that resolves when all notifications are sent.
      */
-    public async sendNotificationToAll(payload: Payload, key: Keys = "id"): Promise<void> {
+    public async sendNotificationToAll(payload: Payload, key: Keys = this.key): Promise<void> {
         const subscriptions = await this.memory.all();
 
         await Promise.allSettled(
@@ -73,7 +74,7 @@ export class WebPushLemur<T extends Subscription & Record<string, any>> {
      * @param {Keys} key - The key used to identify subscriptions (default is "id").
      * @returns {Promise<void>} A promise that resolves when the notification is sent.
      */
-    public async sendNotificationToOne(id: string, payload: Payload, key: Keys = "id"): Promise<void> {
+    public async sendNotificationToOne(id: string, payload: Payload, key: Keys = this.key): Promise<void> {
         const subscription = await this.memory.one(id);
 
         if (!subscription) {
@@ -90,7 +91,7 @@ export class WebPushLemur<T extends Subscription & Record<string, any>> {
      * @param {Keys} key - The key used to identify subscriptions (default is "id").
      * @returns {Promise<void>} A promise that resolves when the notification is sent.
      */
-    public async send(subscription: Subscription, payload: Payload, key: Keys = "id"): Promise<void> {
+    public async send(subscription: Subscription, payload: Payload, key: Keys = this.key): Promise<void> {
         try {
             this.validateSubscription(subscription); // Validate the subscription
             const payloadString = JSON.stringify(payload);
@@ -142,7 +143,7 @@ export class WebPushLemur<T extends Subscription & Record<string, any>> {
     private async retrySend(
         subscription: Subscription,
         payload: Payload,
-        key: Keys = "id",
+        key: Keys = this.key,
         retries: number = this.settings?.retrySend?.retries || 3,
         delay: number = this.settings?.retrySend?.delay || 2000
     ): Promise<void> {
