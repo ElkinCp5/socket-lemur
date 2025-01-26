@@ -1,6 +1,6 @@
 {
   "name": "socket-lemur",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "main": "dist/server/index.js",
   "browser": "dist/browser/index.js",
   "scripts": {
@@ -31,7 +31,7 @@
   "description": "The socket-lemur library simplifies WebSocket connections for real-time communication in chat applications and online games. The SocketServer class integrates JWT authentication and API key validation. The SocketClient class facilitates server communication and event handling, offering a robust solution.",
   "dependencies": {
     "jsonwebtoken": "9.0.2",
-    "socket.io": "4.7.5",
+    "socket.io": "4.8.1",
     "socket.io-client": "4.7.5"
   },
   "devDependencies": {
