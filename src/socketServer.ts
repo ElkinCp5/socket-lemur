@@ -1,9 +1,12 @@
 import { createServer, Server as HTTPServer } from 'http';
 import { Server as SocketIOServer, ServerOptions } from 'socket.io';
 import { ListenOptions } from 'net';
-import { TokenManager } from './tokenManager';
 import { LemurSocket } from './dts/node';
-import { ServerSettings, LemurNext, ConnectionOpt, LemurData, Params, LemurEvent, LemurRequest, Channel, LemurCustomEvent, LemurStandard } from './dts/browser';
+import { LoggerSystem } from './dts/logger';
+import { ServerSettings, LemurNext, ConnectionOpt, LemurData, Params, LemurEvent, LemurRequest, Channel, LemurCustomEvent, LemurStandard, ExpirationTime } from './dts/browser';
+import { TokenManager } from './tokenManager';
+import { ExpiringMap } from './lib/expiring-map';
+import { Logger } from './lib/logger';
 
 /**
  * SocketServer class for handling Socket.IO connections with optional room support.
@@ -12,13 +15,14 @@ import { ServerSettings, LemurNext, ConnectionOpt, LemurData, Params, LemurEvent
 export class SocketServer<Session extends Record<string, any>> extends TokenManager {
     protected io: SocketIOServer;
     private authorization?: string;
-    private rooms: Map<string, Set<LemurSocket<Session>>>; // Map to store active rooms
+    private rooms: ExpiringMap<Set<LemurSocket<Session>>>;
     private channels: Map<string, Channel<Session>>;
 
 
     constructor(
         private readonly settings?: ServerSettings,
-        private readonly httpServer?: HTTPServer
+        private readonly httpServer?: HTTPServer,
+        private readonly logger: LoggerSystem = new Logger("logger-console"),
     ) {
         super();
         const optsDefault: Partial<ServerOptions> = {
@@ -34,7 +38,7 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
             });
         }
 
-        this.rooms = new Map();
+        this.rooms = new ExpiringMap<Set<LemurSocket<Session>>>(this.roomExpirationTime().exp);
         this.channels = new Map();
         this.middleware = this.middleware.bind(this);
         this.connection = this.connection.bind(this);
@@ -60,22 +64,6 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         (handle: any, backlog?: number, listeningListener?: () => void): HTTPServer;
         (handle: any, listeningListener?: () => void): HTTPServer;
     };
-
-    /**
-     * Middleware for authenticating API key and JWT token.
-     * @param {LemurSocket<Session>} socket - The socket instance.
-     * @param {LemurNext} next - The next function to call.
-     */
-    private middleware(socket: LemurSocket<Session>, next: LemurNext) {
-        const { auth } = socket.handshake;
-        const apikey = auth['x-api-key'] as string;
-        this.authorization = auth['authorization'] as string;
-        if (this.settings?.apikey && !this.validApiKey(apikey)) {
-            console.error('Unauthorized access', { auth });
-            return next(new Error('Unauthorized access: Invalid API key.'));
-        }
-        next();
-    }
 
     public connection(opts?: ConnectionOpt) {
         this.io.use(this.middleware).on('connection', (socket: LemurSocket<Session>) => {
@@ -111,7 +99,7 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         name: string,
         onEvent: LemurStandard<T, Session>,
         tokenRequired: boolean = false,
-        roomSupport: boolean = this.settings?.roomsEnabled || false,
+        roomSupport: boolean = this.roomExpirationTime().state,
     ) {
         if (this.channels.has(name)) {
             return; // Channel already configured, do not reconfigure
@@ -130,12 +118,40 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         name: string,
         onEvent: LemurCustomEvent<T, Session>,
         tokenRequired: boolean = false,
-        roomSupport: boolean = this.settings?.roomsEnabled || false,
+        roomSupport: boolean = this.roomExpirationTime().state,
     ) {
         if (this.channels.has(name)) {
             return; // Channel already configured, do not reconfigure
         }
         this.channels.set(name, { onEvent, tokenRequired, roomSupport });
+    }
+
+    private roomExpirationTime(): Omit<ExpirationTime, "state"> & { state: boolean } {
+        if (
+            this.settings?.roomsEnabled === undefined ||
+            typeof this.settings?.roomsEnabled === "boolean"
+        ) return { exp: (30 * 60 * 1000), state: this.settings?.roomsEnabled || false };
+
+        return {
+            ...this.settings?.roomsEnabled,
+            exp: this.settings?.roomsEnabled.exp || (30 * 60 * 1000)
+        };
+    }
+
+    /**
+     * Middleware for authenticating API key and JWT token.
+     * @param {LemurSocket<Session>} socket - The socket instance.
+     * @param {LemurNext} next - The next function to call.
+     */
+    private middleware(socket: LemurSocket<Session>, next: LemurNext) {
+        const { auth } = socket.handshake;
+        const apikey = auth['x-api-key'] as string;
+        this.authorization = auth['authorization'] as string;
+        if (this.settings?.apikey && !this.validApiKey(apikey)) {
+            this.logger.error('Unauthorized access: Invalid API key.', auth);
+            return next(new Error('Unauthorized access: Invalid API key.'));
+        }
+        next();
     }
 
     /**
@@ -149,7 +165,6 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
             this.rooms.set(room, new Set());
         }
         this.rooms.get(room)!.add(socket);
-        console.log(`Socket joined room ${room}`);
     }
 
     /**
@@ -165,7 +180,6 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
                 this.rooms.delete(room);
             }
         }
-        console.log(`Socket left room ${room}`);
     }
 
     /**
@@ -251,6 +265,7 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         } else {
             response.emit(`${channel}:error`, { error });
         }
+        this.logger.error(`${channel}:error`, error);
     }
 
     /**
