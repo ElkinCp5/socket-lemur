@@ -7,7 +7,7 @@ import { LoggerSystem } from '../../dts/logger';
  * Class for managing Web Push notifications with support for subscriptions, metrics, and logging.
  * Provides functionality to add, delete, and send notifications to all or a single subscription.
  */
-export class WebPushLemur<T extends Subscription> {
+export class WebPushLemur<T extends Subscription & Record<string, any>> {
     /**
      * Creates an instance of WebPushLemur.
      *
