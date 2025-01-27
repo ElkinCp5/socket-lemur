@@ -1,4 +1,10 @@
-import { LoggerSystem, LogLevel } from "../../dts/logger";
+import type { LoggerSystem } from "../../dts/logger";
+
+export enum LogLevel {
+    INFO = "INFO",
+    ERROR = "ERROR",
+    WARNING = "WARNING",
+}
 
 /**
  * Class Logger.
