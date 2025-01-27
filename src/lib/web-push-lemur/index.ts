@@ -1,8 +1,9 @@
 import webPush from 'web-push';
 import { Logger } from '../logger';
 import { MetricsLocalMemory, PushLocalMemory } from './memory';
-import { Keys, Memory, MetricsMemory, Payload, Settings, Subscription } from '../../dts/push';
-import { LoggerSystem } from '../../dts/logger';
+import type { Keys, Memory, MetricsMemory, Payload, Settings, Subscription } from '../../dts/push';
+import type { LoggerSystem } from '../../dts/logger';
+
 /**
  * Class for managing Web Push notifications with support for subscriptions, metrics, and logging.
  * Provides functionality to add, delete, and send notifications to all or a single subscription.
