@@ -1,12 +1,14 @@
-import { BroadcastOperator } from 'socket.io';
+import { BroadcastOperator, ServerOptions } from 'socket.io';
 import { ManagerOptions, SocketOptions } from 'socket.io-client';
 import { WebPushLemur } from '../lib/web-push-lemur';
 import { Subscription } from './push';
 
-declare interface LemurSecurity extends Partial<& ManagerOptions & SocketOptions> {
-    apiKey?: string,
-    token?: string
-};
+declare interface LemurSecurity extends Partial<ManagerOptions & Omit<SocketOptions, 'auth'>> {
+    apiKey?: string;
+    token?: string;
+    auth?: Record<string, any>;
+    transformOptions?: (auth: Record<string, any>) => Record<string, any>; // Nueva propiedad
+}
 
 declare type Params = Record<string, any> & { room?: string, authorization?: string }
 declare type LemurRequest<T, S> = {
