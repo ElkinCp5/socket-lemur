@@ -1,4 +1,4 @@
-import { Memory, MetricsMemory, Subscription } from "../../dts/push";
+import type { Memory, MetricsMemory, Subscription } from "../../dts/push";
 
 /**
  * A class for managing subscriptions stored in memory using a Map.
