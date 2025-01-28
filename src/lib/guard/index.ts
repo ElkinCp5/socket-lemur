@@ -1,5 +1,4 @@
 import { LemurCustomSimpleEvent, LemurCustomWebPushEvent, LemurEvent, LemurSimpleEvent, LemurSimpleWebPushEvent } from "../../dts/browser";
-import { Subscription } from "../../dts/push";
 import { WebPushLemur } from "../web-push-lemur";
 
 export function isLemurCustomSimpleEvent<T, S>(
@@ -27,13 +26,14 @@ export function isLemurSimpleWebPushEvent<T, S>(
 }
 
 export function isWebPushLemur(
-    event: WebPushLemur<Subscription>
-): event is WebPushLemur<Subscription> {
-    return typeof event.sendNotificationToAll === 'function'
-        && typeof event.sendNotificationToOne === 'function'
-        && typeof event.add === 'function'
-        && typeof event.delete === 'function'
-        && typeof event.send === 'function'
-        && typeof event.getSubscriptions === 'function'
-        && typeof event.getMetrics === 'function';
+    event?: any
+): event is WebPushLemur<any> {
+    if (!event) return false;
+    return typeof event?.sendNotificationToAll === 'function'
+        && typeof event?.sendNotificationToOne === 'function'
+        && typeof event?.add === 'function'
+        && typeof event?.delete === 'function'
+        && typeof event?.send === 'function'
+        && typeof event?.getSubscriptions === 'function'
+        && typeof event?.getMetrics === 'function';
 }
