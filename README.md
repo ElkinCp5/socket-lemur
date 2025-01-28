@@ -13,7 +13,7 @@ Ensure you have Node.js and npm installed. Then install the required packages:
 Initialize the `SocketServer` instance and define custom event handlers for your application.
 
 ```typescript
-const { SocketServer } = require("socket-lemur");
+import { SocketServer } = from "socket-lemur";
 
 // Port Definition
 const PORT = process.env.PORT || 4000;
@@ -104,6 +104,65 @@ server.connection({
 // More event definitions can be added here
 ```
 
+# Implementation of webPushLemur SocketServer for notifications
+
+```typescript
+import { SocketServer, WebPushLemur } = from "socket-lemur";
+
+const webPushLemur = new WebPushLemur<Subscription>({
+    vapidPublicKey: "your-vapid-public-key",
+    vapidPrivateKey: "your-vapid-private-key",
+    email: "your-email@example.com",
+    retrySend: {
+        retries: 3,
+        delay: 2000,
+    },
+});
+
+const server = new SocketServer<{ id: string }>({
+    apikey: "api-key",
+    secret: "jwt-secret",
+    roomsEnabled: true,
+});
+
+server.channel<{ name: string }>("wep-push",
+    async function (req, res, error, webpush) {
+        const { body } = req;
+        // Add a subscription
+
+        await webpush.add('user-id', body.subscription);
+
+        // Send notification to all subscribers
+        await webpush.sendNotificationToAll({ title: 'Hello', body: 'World' });
+
+        // Send notification to a specific subscriber
+        await webpush.sendNotificationToOne('user-id', { title: 'Hello', body: 'Specific User' });
+    },
+    webPushLemur
+);
+
+server.customChannel<{ name: string }>("wep-push",
+    async function (req, res, error, webpush) {
+        const { body } = req;
+        // Add a subscription
+
+        await webpush.add('user-id', body.subscription);
+
+        // Send notification to all subscribers
+        await webpush.sendNotificationToAll({ title: 'Hello', body: 'World' });
+
+        // Send notification to a specific subscriber
+        await webpush.sendNotificationToOne('user-id', { title: 'Hello', body: 'Specific User' });
+    },
+    webPushLemur
+);
+
+```
+
+## More Documentation
+
+For more details, see [WebPushLemur Documentation](https://github.com/ElkinCp5/socket-lemur/docs/README_SERVER.md).
+
 ### Constructor
 
 #### `new SocketServer<S>(settings?)`
@@ -134,12 +193,13 @@ Establishes channel handling and defines event listeners for Socket.IO.
 
 #### Parameters:
 
-Initialize handling for a channel with optional room support.
+Initialize handling for a channel with optional token, room, webPush support.
 
 - `name`: {string} - The name of the channel.
 - `onEvent`: {onEvent} - Callback to handle incoming events.
 - `tokenRequire`: {boolean} - Whether token authentication is required for events on this channel `false`.
 - `roomSupport`: {boolean} - Whether room support is enabled for this channel `this.roomsEnabled`.
+- `pushManager`: {WebPushLemur<Subscription>} - Whether webPush support is enabled for this channel.
 
 ### listen:
 
@@ -218,6 +278,51 @@ postProduct.emit(
   "tokent"
 );
 ```
+
+# Implementation of webPushLemur SocketCliente for notifications
+
+```typescript
+const { SocketClient } = require("socket-lemur");
+
+const PORT = 3030;
+const url = `http://localhost:${PORT}`;
+
+// Initialize SocketClient with api_key
+const socket = new SocketClient(url, {
+  apiKey: "api-key",
+});
+
+function error(error: any) {
+  console.error("Event error:", error);
+}
+function success(data: any) {
+  console.error("Event success:", data);
+}
+// Connect to a WebSocket channel and define event handlers
+const channel = await socket.serviceWorker<any>({
+  channel: {
+    name: "wep-push",
+    opts: {
+      onSuccess: success,
+      onError: error,
+    },
+  },
+  serviceWorker: {
+    path: "/sw.js",
+    vapidPublicKey: "string",
+    options: { scope: "/" }, // RegistrationOptions
+  },
+});
+
+if (channel) {
+  channel.on();
+  channel.emit({ data: { message: "Hello, world!" } });
+}
+```
+
+## More Documentation
+
+For more details, see [ServiceWorker Documentation](https://github.com/ElkinCp5/socket-lemur/docs/README_CLIENT.md).
 
 ### Constructor
 

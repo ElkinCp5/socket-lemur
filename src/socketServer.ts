@@ -169,9 +169,36 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
     *
     * @param name - The unique name of the channel.
     * @param onEvent - The event handler for the channel.
+    * @param pushManager - Whether the channel supports webPush (optional).
+    */
+    public channel<T extends Record<string, any>>(
+        name: string,
+        onEvent: LemurSimpleWebPushEvent<T & { subscription: Subscription }, Session>,
+        pushManager: WebPushLemur<Subscription>
+    ): void;
+
+    /**
+    * Configures a channel with various input styles.
+    *
+    * @param name - The unique name of the channel.
+    * @param onEvent - The event handler for the channel.
+    * @param tokenRequired - Whether a token is required for the channel (optional).
+    * @param pushManager - Whether the channel supports webPush (optional).
+    */
+    public channel<T extends Record<string, any>>(
+        name: string,
+        onEvent: LemurSimpleWebPushEvent<T & { subscription: Subscription }, Session>,
+        tokenRequired: boolean,
+        pushManager: WebPushLemur<Subscription>
+    ): void;
+
+    /**
+    * Configures a channel with various input styles.
+    *
+    * @param name - The unique name of the channel.
+    * @param onEvent - The event handler for the channel.
     * @param tokenRequired - Whether a token is required for the channel (optional).
     * @param roomSupport - Whether the channel supports rooms (optional).
-    * @param webPushSupport - Whether the channel supports webPush (optional).
     */
     public channel<T extends Record<string, any>>(
         name: string,
@@ -191,7 +218,7 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
     */
     public channel<T extends Record<string, any>>(
         name: string,
-        onEvent: LemurSimpleWebPushEvent<T, Session>,
+        onEvent: LemurSimpleWebPushEvent<T & { subscription: Subscription }, Session>,
         tokenRequired: boolean,
         roomSupport: boolean,
         pushManager: WebPushLemur<Subscription>
@@ -209,15 +236,46 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
     ) {
 
         let channelName = name;
+        let pushManager: WebPushLemur<Subscription> | undefined = undefined;
         const tokenRequired: boolean = typeof args[0] === 'boolean' ? args[0] : false;
         const roomSupport: boolean = typeof args[1] === 'boolean' ? args[1] : this.roomExpirationTime().state;
-        const pushManager: WebPushLemur<Subscription> | undefined = isWebPushLemur(args[0]) ? args[0] : undefined
+
+        if (isWebPushLemur(args[0])) pushManager = args[0];
+        if (isWebPushLemur(args[1])) pushManager = args[1];
+        if (isWebPushLemur(args[2])) pushManager = args[2];
         if (pushManager) channelName = `${name}:push-notifiation`;
 
         if (this.channels.has(channelName)) return; // Channel already configured, do not reconfigure
         this.channels.set(channelName, { onEvent, tokenRequired, roomSupport, pushManager });
     }
 
+    /**
+    * Configures a channel with various input styles.
+    *
+    * @param name - The unique name of the channel.
+    * @param onEvent - The event handler for the channel.
+    * @param pushManager - Whether the channel supports webPush (optional).
+    */
+    public customChannel<T extends Record<string, any>>(
+        name: string,
+        onEvent: LemurCustomWebPushEvent<T, Session>,
+        pushManager: WebPushLemur<Subscription>
+    ): void;
+
+    /**
+    * Configures a channel with various input styles.
+    *
+    * @param name - The unique name of the channel.
+    * @param onEvent - The event handler for the channel.
+    * @param tokenRequired - Whether a token is required for the channel (optional).
+    * @param pushManager - Whether the channel supports webPush (optional).
+    */
+    public customChannel<T extends Record<string, any>>(
+        name: string,
+        onEvent: LemurCustomWebPushEvent<T, Session>,
+        tokenRequired: boolean,
+        pushManager: WebPushLemur<Subscription>
+    ): void;
 
     /**
     * Configures a channel with various input styles.
@@ -226,7 +284,6 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
     * @param onEvent - The event handler for the channel.
     * @param tokenRequired - Whether a token is required for the channel (optional).
     * @param roomSupport - Whether the channel supports rooms (optional).
-    * @param webPushSupport - Whether the channel supports webPush (optional).
     */
     public customChannel<T extends Record<string, any>>(
         name: string,
@@ -449,37 +506,3 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
     };
 
 }
-
-const server = new SocketServer<{ id: string }>(
-    {
-        apikey: "api-key",
-        secret: "jwt-secret",
-        roomsEnabled: true,
-    }
-);
-
-const webPushLemur = new WebPushLemur<Subscription>({
-    vapidPublicKey: "your-vapid-public-key",
-    vapidPrivateKey: "your-vapid-private-key",
-    email: "your-email@example.com",
-    retrySend: {
-        retries: 3,
-        delay: 2000,
-    },
-});
-
-server.channel<{ name: string }>(
-    "post/products",
-    async function (req, res, error, webpush) { console.log(req, res, error, webpush) },
-    true,
-    false,
-    webPushLemur
-);
-
-server.customChannel<{ name: string }>(
-    "post/products",
-    async function (req, res, error, webpush) { console.log(req, res, error, webpush) },
-    true,
-    false,
-    webPushLemur
-);
