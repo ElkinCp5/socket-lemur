@@ -122,7 +122,7 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
                         body,
                         params: params || {} as Params,
                         session: undefined
-                    }, config.onEvent, config.tokenRequired, config.pushManager);
+                    }, config);
                 });
             });
 
@@ -246,7 +246,7 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         if (pushManager) channelName = `${name}:push-notifiation`;
 
         if (this.channels.has(channelName)) return; // Channel already configured, do not reconfigure
-        this.channels.set(channelName, { onEvent, tokenRequired, roomSupport, pushManager });
+        this.channels.set(channelName, { onEvent, tokenRequired, roomSupport, pushManager, type: 'simple' });
     }
 
     /**
@@ -326,7 +326,7 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         if (pushManager) channelName = `${name}:push-notifiation`;
 
         if (this.channels.has(channelName)) return; // Channel already configured, do not reconfigure
-        this.channels.set(channelName, { onEvent, tokenRequired, roomSupport, pushManager });
+        this.channels.set(channelName, { onEvent, tokenRequired, roomSupport, pushManager, type: 'custom' });
     }
 
     private roomExpirationTime(): Omit<ExpirationTime, "state"> & { state: boolean } {
@@ -397,14 +397,12 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         channelName: string,
         socket: LemurSocket<Session>,
         data: LemurRequest<T, Session>,
-        event: LemurEvent<T, Session>,
-        tokenRequired: boolean,
-        pushManager?: WebPushLemur<Subscription>
+        config: Channel<Session>
     ) {
         const token = this.authorization || data?.params?.authorization || '';
         const room = data?.params?.room;
 
-        if (tokenRequired && this.settings?.secret) {
+        if (config.tokenRequired && this.settings?.secret) {
             const session = this.validToken<Session>(this.settings?.secret, token);
             if (!Object.keys(session).length) {
                 return this.error(channelName, room || socket, 'Unauthorized access: No valid session found.');
@@ -416,25 +414,30 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         try {
             const onError = (error: string) => this.error(channelName, room || socket, error)
 
-            if (isLemurCustomSimpleEvent(event) || isLemurCustomWebPushEvent(event)) {
-                const events = {
-                    room,
-                    to: (channel: string, data: any, room: string) => this.success(channel, room, data),
-                    emit: (channel: string, data: any) => this.success(channel, socket, data),
-                }
-                if (isLemurCustomSimpleEvent(event)) return event(data, events, onError);
-                return event(data, events, onError, pushManager as any);
+            if (
+                isLemurCustomWebPushEvent(config.type, config.onEvent) ||
+                isLemurCustomSimpleEvent(config.type, config.onEvent)
+            ) {
+                const to = (channel: string, data: any, room: string) => this.success(channel, room, data);
+                const emit = (channel: string, data: any) => this.success(channel, socket, data);
 
-            } else if (isLemurSimpleEvent(event) || isLemurSimpleWebPushEvent(event)) {
+                if (isLemurCustomSimpleEvent(config.type, config.onEvent)) return config.onEvent(data, { room, to, emit }, onError);
+                return config.onEvent(data, { room, to, emit }, onError, config.pushManager as WebPushLemur<Subscription>);
+
+            } else if (
+                isLemurSimpleEvent(config.type, config.onEvent) ||
+                isLemurSimpleWebPushEvent(config.type, config.onEvent)
+            ) {
                 const onSuccess = (response: any) => this.success(channelName, room || socket, response);
-                if (isLemurSimpleEvent(event)) return event(data, onSuccess, onError);
-                return event(data, onSuccess, onError, pushManager as any);
+
+                if (isLemurSimpleEvent(config.type, config.onEvent)) return config.onEvent(data, onSuccess, onError);
+                return config.onEvent(data, onSuccess, onError, config.pushManager as WebPushLemur<Subscription>);
             } else {
                 throw new Error("Unknown event type!");
             }
 
         } catch (error: any) {
-            this.error(channelName, room || socket, error?.message || error);
+            this.error(channelName, room || socket, error);
         }
     }
 

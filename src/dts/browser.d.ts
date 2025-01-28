@@ -93,6 +93,7 @@ declare interface Channel<T> {
     onEvent: LemurEvent<any, T>,
     tokenRequired: boolean,
     roomSupport: boolean,
+    type: 'custom' | 'simple',
     pushManager?: WebPushLemur<Subscription>
 }
 

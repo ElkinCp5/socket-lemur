@@ -1,28 +1,32 @@
-import { LemurCustomSimpleEvent, LemurCustomWebPushEvent, LemurEvent, LemurSimpleEvent, LemurSimpleWebPushEvent } from "../../dts/browser";
+import type { LemurCustomSimpleEvent, LemurCustomWebPushEvent, LemurEvent, LemurSimpleEvent, LemurSimpleWebPushEvent } from "../../dts/browser";
 import { WebPushLemur } from "../web-push-lemur";
 
 export function isLemurCustomSimpleEvent<T, S>(
+    type: string,
     event: LemurEvent<T, S>
 ): event is LemurCustomSimpleEvent<T, S> {
-    return event.length === 3; // Tiene tres argumentos: request, socket, error
+    return type === 'custom' && event.length >= 1;
 }
 
 export function isLemurCustomWebPushEvent<T, S>(
+    type: string,
     event: LemurEvent<T, S>
 ): event is LemurCustomWebPushEvent<T, S> {
-    return event.length === 4; // Tiene cuatro argumentos: request, socket, error, webPush
+    return type === 'custom' && event.length >= 1;
 }
 
 export function isLemurSimpleEvent<T, S>(
+    type: string,
     event: LemurEvent<T, S>
 ): event is LemurSimpleEvent<T, S> {
-    return event.length === 3; // Tiene tres argumentos: request, onSuccess, onError
+    return type === 'simple' && event.length >= 1;
 }
 
 export function isLemurSimpleWebPushEvent<T, S>(
+    type: string,
     event: LemurEvent<T, S>
 ): event is LemurSimpleWebPushEvent<T, S> {
-    return event.length === 4; // Tiene cuatro argumentos: request, onSuccess, onError, webPush
+    return type === 'simple' && event.length >= 1;
 }
 
 export function isWebPushLemur(
