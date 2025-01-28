@@ -161,7 +161,7 @@ server.customChannel<{ name: string }>("wep-push",
 
 ## More Documentation
 
-For more details, see [WebPushLemur Documentation](https://github.com/ElkinCp5/socket-lemur/docs/README_SERVER.md).
+For more details, see [WebPushLemur Documentation](https://github.com/ElkinCp5/socket-lemur/blob/main/docs/README_SERVER.md).
 
 ### Constructor
 
@@ -322,7 +322,7 @@ if (channel) {
 
 ## More Documentation
 
-For more details, see [ServiceWorker Documentation](https://github.com/ElkinCp5/socket-lemur/docs/README_CLIENT.md).
+For more details, see [ServiceWorker Documentation](https://github.com/ElkinCp5/socket-lemur/blob/main/docs/README_CLIENT.md).
 
 ### Constructor
 
