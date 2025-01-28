@@ -39,22 +39,35 @@ declare type LemurSocketOptions = {
     emit(channel: string, data: any): void
 };
 
-declare type LemurCustomEvent<T, S> = (
+declare type LemurCustomSimpleEvent<T, S> = (
     request: LemurRequest<T, S>,
     socket: LemurSocketOptions,
     error: LemurCatch,
-    webPush?: WebPushLemur<Subscription>
+) => void;
+
+declare type LemurCustomWebPushEvent<T, S> = (
+    request: LemurRequest<T, S>,
+    socket: LemurSocketOptions,
+    error: LemurCatch,
+    webPush: WebPushLemur<Subscription>
 ) => void;
 
 declare type LemurSimpleEvent<T, S> = (
     request: LemurRequest<T, S>,
     onSuccess: LemurResponse,
     onError: LemurCatch,
-    webPush?: WebPushLemur<Subscription>
 ) => void;
 
-declare type LemurEvent<T, S> = LemurCustomEvent<T, S> | LemurSimpleEvent<T, S>
+declare type LemurSimpleWebPushEvent<T, S> = (
+    request: LemurRequest<T, S>,
+    onSuccess: LemurResponse,
+    onError: LemurCatch,
+    webPush: WebPushLemur<Subscription>
+) => void;
 
+declare type LemurCustomEvents<T, S> = LemurCustomSimpleEvent<T, S> | LemurCustomWebPushEvent<T, S>
+declare type LemurSimpleEvents<T, S> = LemurSimpleEvent<T, S> | LemurSimpleWebPushEvent<T, S>
+declare type LemurEvent<T, S> = LemurCustomEvents<T, S> | LemurSimpleEvents<T, S>
 
 declare interface LemurEmit<T> {
     on: (data?: LemurData<T>, token?: string) => void

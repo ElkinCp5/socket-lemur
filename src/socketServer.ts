@@ -1,14 +1,15 @@
 import { createServer, Server as HTTPServer } from 'http';
 import { Server as SocketIOServer, ServerOptions } from 'socket.io';
 import { ListenOptions } from 'net';
-import { LemurSocket } from './dts/node';
-import { LoggerSystem } from './dts/logger';
 import { TokenManager } from './tokenManager';
-import { ExpiringMap } from './lib/expiring-map';
-import { Logger } from './lib/logger';
+// import { ExpiringMap } from './lib/expiring-map';
 import { WebPushLemur } from './lib/web-push-lemur';
-import { Subscription } from './dts/push';
-import {
+import { Logger } from './lib/logger';
+import type { Subscription } from './dts/push';
+import type { LoggerSystem } from './dts/logger';
+import type { LemurSocket } from './dts/modules';
+import { isLemurCustomSimpleEvent, isLemurCustomWebPushEvent, isLemurSimpleEvent, isLemurSimpleWebPushEvent, isWebPushLemur } from './lib/guard';
+import type {
     ServerSettings,
     LemurNext,
     ConnectionOpt,
@@ -18,8 +19,11 @@ import {
     LemurRequest,
     Channel,
     ExpirationTime,
-    LemurCustomEvent,
+    LemurCustomEvents,
     LemurSimpleEvent,
+    LemurSimpleWebPushEvent,
+    LemurCustomSimpleEvent,
+    LemurCustomWebPushEvent,
 } from './dts/browser';
 
 /**
@@ -28,13 +32,13 @@ import {
  */
 export class SocketServer<Session extends Record<string, any>> extends TokenManager {
     protected io: SocketIOServer;
-    private authorization?: string;
-    private rooms: ExpiringMap<Set<LemurSocket<Session>>>;
-    private channels: Map<string, Channel<Session>>;
-    // Settings libreries
-    private pushManager?: WebPushLemur<Subscription>;
-    private logger: LoggerSystem = new Logger("logger-console");
+    protected socket: LemurSocket<Session> | undefined;
 
+    private authorization?: string;
+    private rooms: Map<string, Set<LemurSocket<Session>>>;
+    private channels: Map<string, Channel<Session>>;
+
+    private logger: LoggerSystem = new Logger("logger-console");
 
     constructor(
         private readonly settings?: ServerSettings,
@@ -42,7 +46,11 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
     ) {
         super();
         const optsDefault: Partial<ServerOptions> = {
-            cors: { origin: "*", methods: ["GET", "POST"], credentials: true },
+            cors: {
+                origin: "*",
+                methods: ["GET", "POST"],
+                credentials: true
+            },
             allowEIO3: true
         };
 
@@ -54,7 +62,7 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
             });
         }
 
-        this.rooms = new ExpiringMap<Set<LemurSocket<Session>>>(this.roomExpirationTime().exp);
+        this.rooms = new Map<string, Set<LemurSocket<Session>>>();
         this.channels = new Map();
         this.middleware = this.middleware.bind(this);
         this.connection = this.connection.bind(this);
@@ -81,75 +89,187 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         (handle: any, listeningListener?: () => void): HTTPServer;
     };
 
+    /**
+     * Configures the Socket.IO server to handle WebSocket connections.
+     *
+     * This method sets up middleware, event listeners, and channel-specific logic for managing 
+     * real-time communication. It supports optional callbacks for connection and disconnection events.
+     *
+     * @param {ConnectionOpt} [opts] - Optional configuration for handling connection events.
+     * @param {() => void} [opts.on] - A callback to execute when a new connection is established.
+     * @param {() => void} [opts.off] - A callback to execute when a connection is disconnected.
+     */
     public connection(opts?: ConnectionOpt) {
+        // Attach middleware and listen for 'connection' events
         this.io.use(this.middleware).on('connection', (socket: LemurSocket<Session>) => {
+            // Execute optional 'on connection' callback
             this.execute(opts?.on);
 
+            // Store the current socket reference
+            this.socket = socket;
+
+            // Iterate through defined channels to configure event listeners
             this.channels.forEach((config, name) => {
                 if (config.roomSupport) {
+                    // Handle joining and leaving rooms for channels that support it
                     socket.on(`${name}:join`, (room: string) => this.handleRoomJoin(socket, room));
                     socket.on(`${name}:leave`, (room: string) => this.handleRoomLeave(socket, room));
                 }
 
+                // Listen for events on the channel and handle them
                 socket.on(name, ({ data: body, params }: LemurData<any>) => {
                     this.handleEvent<any>(name, socket, {
                         body,
                         params: params || {} as Params,
                         session: undefined
-                    }, config.onEvent, config.tokenRequired);
+                    }, config.onEvent, config.tokenRequired, config.pushManager);
                 });
             });
 
+            // Listen for 'disconnect' events and execute the optional callback
             socket.on('disconnect', () => this.execute(opts?.off));
         });
     }
 
-    public setLogger(logger?: LoggerSystem) {
+
+    /**
+     * Sets the logger system for the current instance.
+     * Allows the use of a custom logger for logging messages, errors, warnings, and info.
+     *
+     * @param {LoggerSystem} [logger] - An optional logger system that implements the LoggerSystem interface.
+     * @returns {SocketServer<Session>} - Returns the current instance for method chaining.
+     */
+    public setLogger(logger?: LoggerSystem): SocketServer<Session> {
         if (logger) this.logger = logger;
         return this;
     }
 
-    public setWebPush(pushManager?: WebPushLemur<Subscription>) {
-        if (pushManager) this.pushManager = pushManager;
-        return this;
+    /**
+     * Retrieves the Socket.IO server instance.
+     * This instance is used to manage real-time communications through WebSocket connections.
+     *
+     * @returns {SocketIOServer} - Returns the current Socket.IO server instance.
+     */
+    public getIO(): SocketIOServer {
+        return this.io;
     }
 
     /**
-     * Initialize handling for a channel with optional room support.
-     * @param {string} name - The name of the channel.
-     * @param {LemurEvent<T, Session>} onEvent - Callback to handle incoming events.
-     * @param {boolean} [tokenRequired=false] - Whether token authentication is required for events on this channel.
-     * @param {boolean} [roomSupport=this.roomsEnabled] - Whether room support is enabled for this channel.
+     * Retrieves the primary WebSocket connection instance.
+     * This instance is used to interact directly with the WebSocket layer for emitting or handling events.
+     *
+     * @returns {LemurSocket<Session> | undefined} - Returns the current WebSocket connection instance.
      */
+    public getSocket(): LemurSocket<Session> | undefined {
+        return this.socket;
+    }
+
+    /**
+    * Configures a channel with various input styles.
+    *
+    * @param name - The unique name of the channel.
+    * @param onEvent - The event handler for the channel.
+    * @param tokenRequired - Whether a token is required for the channel (optional).
+    * @param roomSupport - Whether the channel supports rooms (optional).
+    * @param webPushSupport - Whether the channel supports webPush (optional).
+    */
     public channel<T extends Record<string, any>>(
         name: string,
         onEvent: LemurSimpleEvent<T, Session>,
-        tokenRequired: boolean = false,
-        roomSupport: boolean = this.roomExpirationTime().state,
-    ) {
-        if (this.channels.has(name)) {
-            return; // Channel already configured, do not reconfigure
-        }
-        this.channels.set(name, { onEvent, tokenRequired, roomSupport, pushManager: this.pushManager });
-    }
+        tokenRequired?: boolean,
+        roomSupport?: boolean,
+    ): void;
+
+    /**
+    * Configures a channel with various input styles.
+    *
+    * @param name - The unique name of the channel.
+    * @param onEvent - The event handler for the channel.
+    * @param tokenRequired - Whether a token is required for the channel (optional).
+    * @param roomSupport - Whether the channel supports rooms (optional).
+    * @param pushManager - Whether the channel supports webPush (optional).
+    */
+    public channel<T extends Record<string, any>>(
+        name: string,
+        onEvent: LemurSimpleWebPushEvent<T, Session>,
+        tokenRequired: boolean,
+        roomSupport: boolean,
+        pushManager: WebPushLemur<Subscription>
+    ): void;
 
     /**
      * Initialize handling for a channel with optional room support.
      * @param {string} name - The name of the channel.
      * @param {LemurEvent<T, Session>} onEvent - Callback to handle incoming events.
-     * @param {boolean} [tokenRequired=false] - Whether token authentication is required for events on this channel.
-     * @param {boolean} [roomSupport=this.roomsEnabled] - Whether room support is enabled for this channel.
+     */
+    public channel<T extends Record<string, any>>(
+        name: string,
+        onEvent: LemurEvent<T, Session>,
+        ...args: Array<any>
+    ) {
+
+        let channelName = name;
+        const tokenRequired: boolean = typeof args[0] === 'boolean' ? args[0] : false;
+        const roomSupport: boolean = typeof args[1] === 'boolean' ? args[1] : this.roomExpirationTime().state;
+        const pushManager: WebPushLemur<Subscription> | undefined = isWebPushLemur(args[0]) ? args[0] : undefined
+        if (pushManager) channelName = `${name}:push-notifiation`;
+
+        if (this.channels.has(channelName)) return; // Channel already configured, do not reconfigure
+        this.channels.set(channelName, { onEvent, tokenRequired, roomSupport, pushManager });
+    }
+
+
+    /**
+    * Configures a channel with various input styles.
+    *
+    * @param name - The unique name of the channel.
+    * @param onEvent - The event handler for the channel.
+    * @param tokenRequired - Whether a token is required for the channel (optional).
+    * @param roomSupport - Whether the channel supports rooms (optional).
+    * @param webPushSupport - Whether the channel supports webPush (optional).
+    */
+    public customChannel<T extends Record<string, any>>(
+        name: string,
+        onEvent: LemurCustomSimpleEvent<T, Session>,
+        tokenRequired?: boolean,
+        roomSupport?: boolean,
+    ): void;
+
+    /**
+    * Configures a channel with various input styles.
+    *
+    * @param name - The unique name of the channel.
+    * @param onEvent - The event handler for the channel.
+    * @param tokenRequired - Whether a token is required for the channel (optional).
+    * @param roomSupport - Whether the channel supports rooms (optional).
+    * @param pushManager - Whether the channel supports webPush (optional).
+    */
+    public customChannel<T extends Record<string, any>>(
+        name: string,
+        onEvent: LemurCustomWebPushEvent<T, Session>,
+        tokenRequired: boolean,
+        roomSupport: boolean,
+        pushManager: WebPushLemur<Subscription>
+    ): void;
+
+    /**
+     * Initialize handling for a channel with optional room support.
+     * @param {string} name - The name of the channel.
+     * @param {LemurEvent<T, Session>} onEvent - Callback to handle incoming events.
      */
     public customChannel<T extends Record<string, any>>(
         name: string,
-        onEvent: LemurCustomEvent<T, Session>,
-        tokenRequired: boolean = false,
-        roomSupport: boolean = this.roomExpirationTime().state,
+        onEvent: LemurCustomEvents<T, Session>,
+        ...args: Array<any>
     ) {
-        if (this.channels.has(name)) {
-            return; // Channel already configured, do not reconfigure
-        }
-        this.channels.set(name, { onEvent, tokenRequired, roomSupport, pushManager: this.pushManager });
+        let channelName = name;
+        const tokenRequired: boolean = typeof args[0] === 'boolean' ? args[0] : false;
+        const roomSupport: boolean = typeof args[1] === 'boolean' ? args[1] : this.roomExpirationTime().state;
+        const pushManager: WebPushLemur<Subscription> | undefined = isWebPushLemur(args[0]) ? args[0] : undefined
+        if (pushManager) channelName = `${name}:push-notifiation`;
+
+        if (this.channels.has(channelName)) return; // Channel already configured, do not reconfigure
+        this.channels.set(channelName, { onEvent, tokenRequired, roomSupport, pushManager });
     }
 
     private roomExpirationTime(): Omit<ExpirationTime, "state"> & { state: boolean } {
@@ -221,7 +341,8 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
         socket: LemurSocket<Session>,
         data: LemurRequest<T, Session>,
         event: LemurEvent<T, Session>,
-        tokenRequired: boolean
+        tokenRequired: boolean,
+        pushManager?: WebPushLemur<Subscription>
     ) {
         const token = this.authorization || data?.params?.authorization || '';
         const room = data?.params?.room;
@@ -235,33 +356,26 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
             data.session = session;
         }
 
-        // Guardias de tipo para distinguir entre los diferentes tipos de eventos
-        function isLemurCustomEvent<T, S>(event: LemurEvent<T, S>): event is LemurCustomEvent<T, S> {
-            return 'socket' in (event as LemurCustomEvent<T, S>);
-        }
-
         try {
-            // Manejo de eventos con `webPush`
-            if (isLemurCustomEvent(event)) {
-                return event(
-                    data,
-                    {
-                        room,
-                        to: (channel: string, data: any, room: string) => this.success(channel, room, data),
-                        emit: (channel: string, data: any) => this.success(channel, socket, data),
-                    },
-                    (error: string) => this.error(channelName, room || socket, error),
-                    this.pushManager
-                );
+            const onError = (error: string) => this.error(channelName, room || socket, error)
+
+            if (isLemurCustomSimpleEvent(event) || isLemurCustomWebPushEvent(event)) {
+                const events = {
+                    room,
+                    to: (channel: string, data: any, room: string) => this.success(channel, room, data),
+                    emit: (channel: string, data: any) => this.success(channel, socket, data),
+                }
+                if (isLemurCustomSimpleEvent(event)) return event(data, events, onError);
+                return event(data, events, onError, pushManager as any);
+
+            } else if (isLemurSimpleEvent(event) || isLemurSimpleWebPushEvent(event)) {
+                const onSuccess = (response: any) => this.success(channelName, room || socket, response);
+                if (isLemurSimpleEvent(event)) return event(data, onSuccess, onError);
+                return event(data, onSuccess, onError, pushManager as any);
+            } else {
+                throw new Error("Unknown event type!");
             }
 
-            // Manejo de eventos estándar
-            return event(
-                data,
-                (response: any) => this.success(channelName, room || socket, response),
-                (error: string) => this.error(channelName, room || socket, error),
-                this.pushManager
-            );
         } catch (error: any) {
             this.error(channelName, room || socket, error?.message || error);
         }
@@ -335,3 +449,37 @@ export class SocketServer<Session extends Record<string, any>> extends TokenMana
     };
 
 }
+
+const server = new SocketServer<{ id: string }>(
+    {
+        apikey: "api-key",
+        secret: "jwt-secret",
+        roomsEnabled: true,
+    }
+);
+
+const webPushLemur = new WebPushLemur<Subscription>({
+    vapidPublicKey: "your-vapid-public-key",
+    vapidPrivateKey: "your-vapid-private-key",
+    email: "your-email@example.com",
+    retrySend: {
+        retries: 3,
+        delay: 2000,
+    },
+});
+
+server.channel<{ name: string }>(
+    "post/products",
+    async function (req, res, error, webpush) { console.log(req, res, error, webpush) },
+    true,
+    false,
+    webPushLemur
+);
+
+server.customChannel<{ name: string }>(
+    "post/products",
+    async function (req, res, error, webpush) { console.log(req, res, error, webpush) },
+    true,
+    false,
+    webPushLemur
+);
